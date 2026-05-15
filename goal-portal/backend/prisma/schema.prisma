@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum UomType {
+  NUMERIC
+  PERCENTAGE
+  TIMELINE
+  ZERO_BASED
+}
+
+enum GoalStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String
+  name          String
+  role          Role     @default(EMPLOYEE)
+  managerId     String?
+  manager       User?    @relation("reports", fields: [managerId], references: [id])
+  directReports User[]   @relation("reports")
+  goals         Goal[]
+  auditLogs     AuditLog[]
+}
+
+model Goal {
+  id          String      @id @default(uuid())
+  employeeId  String
+  employee    User        @relation(fields: [employeeId], references: [id])
+  thrustArea  String
+  title       String
+  description String?
+  uom         UomType
+  target      Float
+  weightage   Float       // must be >= 10; SUM per employee must = 100
+  status      GoalStatus  @default(DRAFT)
+  locked      Boolean     @default(false)
+  isShared    Boolean     @default(false)
+  updates     GoalUpdate[]
+}
+
+model GoalUpdate {
+  id            String   @id @default(uuid())
+  goalId        String
+  goal          Goal     @relation(fields: [goalId], references: [id])
+  quarter       String   // "Q1" | "Q2" | "Q3" | "Q4"
+  achievement   Float
+  statusUpdate  String   // "NOT_STARTED" | "ON_TRACK" | "COMPLETED"
+  comment       String?  // manager check-in comment
+  progressScore Float?   // computed by backend
+  createdAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  entityType String   // "Goal" | "GoalUpdate"
+  entityId   String
+  action     String   // "APPROVE" | "RETURN" | "UNLOCK" | "UPDATE"
+  oldValue   Json?
+  newValue   Json?
+  timestamp  DateTime @default(now())
+}
