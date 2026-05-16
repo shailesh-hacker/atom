@@ -17,6 +17,7 @@ const navTabs = {
     { name: 'Team Goals', href: '/team' },
     { name: 'Approvals', href: '/approvals' },
     { name: 'Check-ins', href: '/checkins' },
+    { name: 'Reports', href: '/reports' },
   ],
   ADMIN: [
     { name: 'Users', href: '/users' },

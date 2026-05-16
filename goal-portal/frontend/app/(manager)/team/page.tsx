@@ -1,20 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Users, Target, Clock, CheckCircle, Search, ChevronDown, ChevronRight, Check, X, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
+import { Users, Target, Clock, CheckCircle, Search, ChevronDown, ChevronRight, Check, X, Loader2, Plus, Share2, Pencil, Trash2 } from 'lucide-react';
 import StatusChip from '@/components/shared/StatusChip';
+import CreateGoalSlideOver from '@/components/goals/CreateGoalSlideOver';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Goal {
   id: string;
   title: string;
+  description?: string;
   thrustArea: string;
   uom: string;
   target: number;
   weightage: number;
-  status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'RETURNED';
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'RETURNED' | 'COMPLETED';
   locked: boolean;
   employeeId: string;
   employee: {
@@ -33,36 +36,44 @@ interface EmployeeGroup {
 }
 
 export default function TeamDashboardPage() {
+  const queryClient = useQueryClient();
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [teamData, setTeamData] = useState<EmployeeGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  const [slideOver, setSlideOver] = useState<{
+    open: boolean;
+    mode: 'INDIVIDUAL' | 'SHARED';
+    targetEmployeeId?: string;
+    initialData?: any;
+    goalId?: string;
+  }>({ open: false, mode: 'INDIVIDUAL' });
 
   const fetchTeamGoals = useCallback(async () => {
     try {
       const { data } = await api.get('/goals/team');
-      // Group goals by employee
-      const grouped = new Map<string, EmployeeGroup>();
-      for (const goal of data) {
-        const emp = goal.employee;
-        if (!grouped.has(emp.id)) {
-          const initials = emp.name
-            .split(' ')
-            .map((n: string) => n[0])
-            .join('');
-          grouped.set(emp.id, {
-            id: emp.id,
-            name: emp.name,
-            email: emp.email,
-            initials,
-            goals: [],
-          });
-        }
-        grouped.get(emp.id)!.goals.push(goal);
-      }
-      setTeamData(Array.from(grouped.values()));
+      
+      const mappedTeam = data.map((user: any) => {
+        const initials = user.name
+          .split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2);
+          
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          initials,
+          goals: user.goals || [],
+        };
+      });
+      
+      setTeamData(mappedTeam);
     } catch (err: any) {
       toast.error('Failed to load team goals');
     } finally {
@@ -74,10 +85,54 @@ export default function TeamDashboardPage() {
     fetchTeamGoals();
   }, [fetchTeamGoals]);
 
+  // ── Mutations ──
+  const assignMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (slideOver.mode === 'SHARED') {
+        return api.post('/goals/shared', {
+          ...data,
+          employeeIds: data.employeeIds,
+        });
+      }
+      return api.post('/goals', {
+        ...data,
+        employeeId: data.employeeIds?.[0],
+      });
+    },
+    onSuccess: () => {
+      fetchTeamGoals();
+      setSlideOver({ open: false, mode: 'INDIVIDUAL' });
+      toast.success(slideOver.mode === 'SHARED' ? 'Shared goals assigned!' : 'Goal assigned successfully!');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to assign goal'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/goals/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      fetchTeamGoals();
+      toast.success('Goal deleted successfully');
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to delete goal'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/goals/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      fetchTeamGoals();
+      toast.success('Goal updated successfully');
+      setSlideOver({ open: false, mode: 'INDIVIDUAL' });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to update goal'),
+  });
+
   const totalMembers = teamData.length;
   const totalGoals = teamData.reduce((sum, e) => sum + e.goals.length, 0);
-  const pendingApproval = teamData.reduce((sum, e) => sum + e.goals.filter((g) => g.status === 'SUBMITTED').length, 0);
-  const approvedGoals = teamData.reduce((sum, e) => sum + e.goals.filter((g) => g.status === 'APPROVED').length, 0);
+  const pendingApproval = teamData.reduce((sum, e) => sum + e.goals.filter((g) => g.status === 'PENDING').length, 0);
+  const approvedGoalsCount = teamData.reduce((sum, e) => sum + e.goals.filter((g) => g.status === 'APPROVED').length, 0);
+  const completedGoalsCount = teamData.reduce((sum, e) => sum + e.goals.filter((g) => g.status === 'COMPLETED').length, 0);
 
   const filteredData = teamData.filter((e) => {
     const matchesSearch = e.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -99,9 +154,12 @@ export default function TeamDashboardPage() {
   };
 
   const handleReturn = async (goalId: string) => {
+    const reason = window.prompt('Please enter a reason for returning this goal:');
+    if (!reason) return;
+
     setActionLoading(goalId);
     try {
-      await api.patch(`/goals/${goalId}/return`);
+      await api.patch(`/goals/${goalId}/return`, { reason });
       toast.success('Goal returned for rework.');
       fetchTeamGoals();
     } catch (err: any) {
@@ -112,7 +170,7 @@ export default function TeamDashboardPage() {
   };
 
   const handleApproveAll = async (employee: EmployeeGroup) => {
-    const submittedGoals = employee.goals.filter((g) => g.status === 'SUBMITTED');
+    const submittedGoals = employee.goals.filter((g) => g.status === 'PENDING');
     try {
       await Promise.all(submittedGoals.map((g) => api.patch(`/goals/${g.id}/approve`)));
       toast.success(`All ${submittedGoals.length} goals approved!`);
@@ -123,9 +181,14 @@ export default function TeamDashboardPage() {
   };
 
   const handleReturnAll = async (employee: EmployeeGroup) => {
-    const submittedGoals = employee.goals.filter((g) => g.status === 'SUBMITTED');
+    const submittedGoals = employee.goals.filter((g) => g.status === 'PENDING');
+    if (submittedGoals.length === 0) return;
+
+    const reason = window.prompt(`Please enter a reason for returning ${submittedGoals.length} goals for ${employee.name}:`);
+    if (!reason) return;
+
     try {
-      await Promise.all(submittedGoals.map((g) => api.patch(`/goals/${g.id}/return`)));
+      await Promise.all(submittedGoals.map((g) => api.patch(`/goals/${g.id}/return`, { reason })));
       toast.success('All goals returned for rework.');
       fetchTeamGoals();
     } catch (err: any) {
@@ -150,9 +213,29 @@ export default function TeamDashboardPage() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-text-primary">Team Overview</h1>
-        <p className="text-sm text-text-secondary mt-1">Monitor and approve goals for your direct reports.</p>
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-text-primary">Team Overview</h1>
+          <p className="text-sm text-text-secondary mt-1">Monitor and approve goals for your direct reports.</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSlideOver({ open: true, mode: 'INDIVIDUAL', targetEmployeeId: undefined })}
+            className="bg-surface text-brand border border-brand/20 px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-brand-light transition-colors shadow-sm"
+          >
+            <Target size={18} />
+            Assign Normal Goal
+          </button>
+          
+          <button
+            onClick={() => setSlideOver({ open: true, mode: 'SHARED' })}
+            className="bg-brand text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-brand-dark transition-colors shadow-sm"
+          >
+            <Share2 size={18} />
+            Create Shared Goal
+          </button>
+        </div>
       </div>
 
       {/* Summary Stat Cards */}
@@ -184,9 +267,10 @@ export default function TeamDashboardPage() {
         <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle size={20} className="text-success" />
-            <span className="text-xs font-medium text-text-secondary uppercase tracking-wide">Approved</span>
+            <span className="text-xs font-medium text-text-secondary uppercase tracking-wide">Completed</span>
           </div>
-          <p className="text-3xl font-bold text-text-primary">{approvedGoals}</p>
+          <p className="text-3xl font-bold text-text-primary">{completedGoalsCount}</p>
+          <p className="text-xs text-text-secondary mt-1">finalized work</p>
         </div>
       </div>
 
@@ -208,7 +292,7 @@ export default function TeamDashboardPage() {
           className="border border-border rounded-md px-4 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
         >
           <option value="ALL">All Statuses</option>
-          <option value="SUBMITTED">Submitted</option>
+          <option value="PENDING">Pending</option>
           <option value="APPROVED">Approved</option>
           <option value="RETURNED">Returned</option>
         </select>
@@ -218,11 +302,9 @@ export default function TeamDashboardPage() {
       {filteredData.length === 0 ? (
         <div className="bg-surface rounded-xl border border-border p-12 text-center shadow-sm">
           <Users size={48} className="mx-auto text-text-secondary/40 mb-4" />
-          <h3 className="text-lg font-semibold text-text-primary mb-1">No team members found</h3>
+          <h3 className="text-lg font-semibold text-text-primary mb-1">No goals assigned yet</h3>
           <p className="text-sm text-text-secondary">
-            {teamData.length === 0
-              ? 'No direct reports have submitted goals yet.'
-              : 'No results match your current filters.'}
+            Your direct reports are listed below. Click "Assign Goal" on an employee to get started.
           </p>
         </div>
       ) : (
@@ -240,8 +322,10 @@ export default function TeamDashboardPage() {
             <tbody className="divide-y divide-border">
               {filteredData.map((employee) => {
                 const isExpanded = expandedEmployee === employee.id;
-                const allSubmitted = employee.goals.every((g) => g.status === 'SUBMITTED');
+                const allPending = employee.goals.every((g) => g.status === 'PENDING');
                 const allApproved = employee.goals.every((g) => g.status === 'APPROVED');
+                const allCompleted = employee.goals.every((g) => g.status === 'COMPLETED');
+                const anyCompleted = employee.goals.some((g) => g.status === 'COMPLETED');
 
                 return (
                   <Fragment key={employee.id}>
@@ -262,10 +346,19 @@ export default function TeamDashboardPage() {
                       </td>
                       <td className="px-6 py-4 text-sm text-text-secondary">{employee.goals.length} goals</td>
                       <td className="px-6 py-4">
-                        {allApproved ? (
+                        {allCompleted ? (
+                          <StatusChip status="COMPLETED" />
+                        ) : allApproved ? (
                           <StatusChip status="APPROVED" />
-                        ) : allSubmitted ? (
-                          <StatusChip status="SUBMITTED" />
+                        ) : allPending ? (
+                          <StatusChip status="PENDING" />
+                        ) : anyCompleted ? (
+                           <div className="flex items-center gap-2">
+                             <StatusChip status="APPROVED" />
+                             <span className="text-[10px] font-bold text-success">
+                               {employee.goals.filter(g => g.status === 'COMPLETED').length}/{employee.goals.length} Done
+                             </span>
+                           </div>
                         ) : (
                           <span className="text-xs text-text-secondary">Mixed</span>
                         )}
@@ -278,6 +371,17 @@ export default function TeamDashboardPage() {
                       <tr>
                         <td colSpan={5} className="bg-background px-6 py-4">
                           <div className="space-y-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Goal Sheet</h4>
+                              <button
+                                onClick={() => setSlideOver({ open: true, mode: 'INDIVIDUAL', targetEmployeeId: employee.id })}
+                                className="text-xs font-semibold text-brand flex items-center gap-1 hover:underline"
+                              >
+                                <Plus size={14} />
+                                Assign Goal
+                              </button>
+                            </div>
+                            
                             {employee.goals.map((goal) => (
                               <div key={goal.id} className="flex items-center justify-between bg-surface rounded-lg border border-border px-5 py-3">
                                 <div className="flex-1">
@@ -290,31 +394,68 @@ export default function TeamDashboardPage() {
                                     Target: {goal.target} · Weightage: {goal.weightage}%
                                   </p>
                                 </div>
-                                {goal.status === 'SUBMITTED' && (
-                                  <div className="flex items-center gap-2 ml-4">
+                                <div className="flex items-center gap-2 ml-4">
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); handleApprove(goal.id); }}
-                                      disabled={actionLoading === goal.id}
-                                      className="p-2 rounded-lg hover:bg-success-light text-success transition-colors disabled:opacity-50"
-                                      aria-label="Approve goal"
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        setSlideOver({ 
+                                          open: true, 
+                                          mode: 'INDIVIDUAL', 
+                                          targetEmployeeId: employee.id,
+                                          initialData: {
+                                            thrustArea: goal.thrustArea,
+                                            title: goal.title,
+                                            description: goal.description || '',
+                                            uom: goal.uom,
+                                            target: goal.target,
+                                            weightage: goal.weightage,
+                                          },
+                                          goalId: goal.id
+                                        }); 
+                                      }}
+                                      className="p-1.5 rounded-lg hover:bg-brand-light text-brand transition-colors"
+                                      title="Edit Goal"
                                     >
-                                      {actionLoading === goal.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                      <Pencil size={14} />
                                     </button>
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); handleReturn(goal.id); }}
-                                      disabled={actionLoading === goal.id}
-                                      className="p-2 rounded-lg hover:bg-danger-light text-danger transition-colors disabled:opacity-50"
-                                      aria-label="Return goal"
+                                      onClick={(e) => { 
+                                        e.stopPropagation(); 
+                                        if (confirm('Are you sure you want to delete this goal?')) {
+                                          deleteMutation.mutate(goal.id);
+                                        }
+                                      }}
+                                      className="p-1.5 rounded-lg hover:bg-danger-light text-danger transition-colors"
+                                      title="Delete Goal"
                                     >
-                                      <X size={16} />
+                                      <Trash2 size={14} />
                                     </button>
+                                    {goal.status === 'PENDING' && (
+                                      <>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleApprove(goal.id); }}
+                                          disabled={actionLoading === goal.id}
+                                          className="p-2 rounded-lg hover:bg-success-light text-success transition-colors disabled:opacity-50"
+                                          aria-label="Approve goal"
+                                        >
+                                          {actionLoading === goal.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleReturn(goal.id); }}
+                                          disabled={actionLoading === goal.id}
+                                          className="p-2 rounded-lg hover:bg-danger-light text-danger transition-colors disabled:opacity-50"
+                                          aria-label="Return goal"
+                                        >
+                                          <X size={16} />
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
-                                )}
                               </div>
                             ))}
 
                             {/* Bulk actions */}
-                            {employee.goals.some((g) => g.status === 'SUBMITTED') && (
+                            {employee.goals.some((g) => g.status === 'PENDING') && (
                               <div className="flex justify-end gap-3 pt-2">
                                 <button
                                   onClick={() => handleReturnAll(employee)}
@@ -341,8 +482,23 @@ export default function TeamDashboardPage() {
           </table>
         </div>
       )}
+
+      {/* Assignment Slide-over */}
+      <CreateGoalSlideOver
+        open={slideOver.open}
+        onClose={() => setSlideOver({ open: false, mode: 'INDIVIDUAL' })}
+        onSave={(data) => {
+          if ((slideOver as any).goalId) {
+            updateMutation.mutate({ id: (slideOver as any).goalId, data });
+          } else {
+            assignMutation.mutate(data);
+          }
+        }}
+        mode={slideOver.mode}
+        targetEmployeeId={slideOver.targetEmployeeId}
+        initialData={(slideOver as any).initialData}
+        availableEmployees={teamData.map(e => ({ id: e.id, name: e.name }))}
+      />
     </div>
   );
 }
-
-import { Fragment } from 'react';

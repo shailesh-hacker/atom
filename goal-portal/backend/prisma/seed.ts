@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { PrismaClient, Role, UomType, GoalStatus } from '@prisma/client';
+import { PrismaClient, Role, UomType, GoalStatus, CyclePhase } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -11,6 +11,11 @@ const prisma = new PrismaClient({ adapter });
 
 async function main() {
   const password = await bcrypt.hash('password123', 10);
+
+  console.log('Resetting system data...');
+  await prisma.goalUpdate.deleteMany({});
+  await prisma.goal.deleteMany({});
+  console.log('Existing goals and updates cleared.');
 
   // Create Admin
   const admin = await prisma.user.upsert({
@@ -49,10 +54,25 @@ async function main() {
     },
   });
 
+  // Create a default Cycle
+  const cycle = await prisma.cycle.upsert({
+    where: { id: 'default-cycle-fy2526' },
+    update: {},
+    create: {
+      id: 'default-cycle-fy2526',
+      name: 'FY 2025-26',
+      startDate: new Date('2025-05-01'),
+      endDate: new Date('2026-04-30'),
+      phase: CyclePhase.GOAL_SETTING,
+      isActive: true,
+    },
+  });
+
   console.log('Seed data created:');
   console.log('Admin: admin@example.com / password123');
   console.log('Manager: manager@example.com / password123');
   console.log('Employee: employee@example.com / password123');
+  console.log('Cycle:', cycle.name, '(active)');
 }
 
 main()

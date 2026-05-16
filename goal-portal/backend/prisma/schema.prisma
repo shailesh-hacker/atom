@@ -21,9 +21,19 @@ enum UomType {
 
 enum GoalStatus {
   DRAFT
-  SUBMITTED
+  PENDING
   APPROVED
   RETURNED
+  COMPLETED
+}
+
+enum CyclePhase {
+  GOAL_SETTING
+  Q1_CHECKIN
+  Q2_CHECKIN
+  Q3_CHECKIN
+  Q4_CHECKIN
+  CLOSED
 }
 
 model User {
@@ -35,24 +45,40 @@ model User {
   managerId     String?
   manager       User?    @relation("reports", fields: [managerId], references: [id])
   directReports User[]   @relation("reports")
-  goals         Goal[]
+  goals         Goal[]   @relation("EmployeeGoals")
+  ownedGoals    Goal[]   @relation("PrimaryOwner")
   auditLogs     AuditLog[]
 }
 
+model Cycle {
+  id        String     @id @default(uuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  phase     CyclePhase @default(GOAL_SETTING)
+  isActive  Boolean    @default(false)
+  goals     Goal[]
+}
+
 model Goal {
-  id          String      @id @default(uuid())
-  employeeId  String
-  employee    User        @relation(fields: [employeeId], references: [id])
-  thrustArea  String
-  title       String
-  description String?
-  uom         UomType
-  target      Float
-  weightage   Float       // must be >= 10; SUM per employee must = 100
-  status      GoalStatus  @default(DRAFT)
-  locked      Boolean     @default(false)
-  isShared    Boolean     @default(false)
-  updates     GoalUpdate[]
+  id             String      @id @default(uuid())
+  employeeId     String
+  employee       User        @relation("EmployeeGoals", fields: [employeeId], references: [id])
+  cycleId        String?
+  cycle          Cycle?      @relation(fields: [cycleId], references: [id])
+  thrustArea     String
+  title          String
+  description    String?
+  uom            UomType
+  target         Float
+  weightage      Float       // must be >= 10; SUM per employee must = 100
+  status         GoalStatus  @default(DRAFT)
+  locked         Boolean     @default(false)
+  returnReason   String?
+  isShared       Boolean     @default(false)
+  primaryOwnerId String?
+  primaryOwner   User?       @relation("PrimaryOwner", fields: [primaryOwnerId], references: [id])
+  updates        GoalUpdate[]
 }
 
 model GoalUpdate {
@@ -73,7 +99,7 @@ model AuditLog {
   user       User     @relation(fields: [userId], references: [id])
   entityType String   // "Goal" | "GoalUpdate"
   entityId   String
-  action     String   // "APPROVE" | "RETURN" | "UNLOCK" | "UPDATE"
+  action     String   // "APPROVE" | "RETURN" | "UNLOCK" | "UPDATE" | "CREATE" | "DELETE"
   oldValue   Json?
   newValue   Json?
   timestamp  DateTime @default(now())

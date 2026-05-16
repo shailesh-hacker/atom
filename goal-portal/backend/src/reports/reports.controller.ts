@@ -1,4 +1,4 @@
-import { Controller, Get, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Res, UseGuards, Request, Query, ForbiddenException } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { stringify } from 'csv-stringify';
@@ -14,8 +14,21 @@ export class ReportsController {
 
   @Get('export')
   @Roles(Role.ADMIN, Role.MANAGER)
-  async exportCsv(@Res() res: Response) {
+  async exportCsv(@Request() req, @Res() res: Response, @Query('managerId') managerId?: string) {
+    const userRole = req.user.role;
+    let targetManagerId = managerId;
+
+    if (userRole === Role.MANAGER) {
+      targetManagerId = req.user.id; // Managers can only export their own team
+    }
+
+    const whereClause: any = {};
+    if (targetManagerId) {
+      whereClause.employee = { managerId: targetManagerId };
+    }
+
     const goals = await this.prisma.goal.findMany({
+      where: whereClause,
       include: {
         employee: true,
         updates: true,
@@ -42,18 +55,37 @@ export class ReportsController {
   }
 
   @Get('completion')
-  @Roles(Role.ADMIN)
-  async getCompletionRates() {
-    const totalEmployees = await this.prisma.user.count({ where: { role: Role.EMPLOYEE } });
+  @Roles(Role.ADMIN, Role.MANAGER)
+  async getCompletionRates(@Request() req, @Query('managerId') managerId?: string) {
+    const userRole = req.user.role;
+    let targetManagerId = managerId;
+
+    if (userRole === Role.MANAGER) {
+      targetManagerId = req.user.id; // Managers can only see their own team
+    }
+
+    const whereClause: any = { role: Role.EMPLOYEE };
+    if (targetManagerId) {
+      whereClause.managerId = targetManagerId;
+    }
+
+    const totalEmployees = await this.prisma.user.count({ where: whereClause });
+
+    // Build where clause for goals
+    const goalWhereClause: any = { status: { in: ['PENDING', 'APPROVED', 'COMPLETED'] } };
+    if (targetManagerId) {
+      goalWhereClause.employee = { managerId: targetManagerId };
+    }
+
     const submittedEmployees = await this.prisma.goal.groupBy({
       by: ['employeeId'],
-      where: { status: { in: ['SUBMITTED', 'APPROVED'] } },
+      where: goalWhereClause,
     });
 
     return {
       total: totalEmployees,
       submitted: submittedEmployees.length,
-      rate: (submittedEmployees.length / totalEmployees) * 100,
+      rate: totalEmployees > 0 ? (submittedEmployees.length / totalEmployees) * 100 : 0,
     };
   }
 }

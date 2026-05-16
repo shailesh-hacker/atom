@@ -20,7 +20,7 @@ const roleRouteMap: Record<string, Role[]> = {
   '/users': ['ADMIN'],
   '/cycles': ['ADMIN'],
   '/audit': ['ADMIN'],
-  '/reports': ['ADMIN'],
+  '/reports': ['ADMIN', 'MANAGER'],
 };
 
 export default function AuthGuard({ children, allowedRoles }: AuthGuardProps) {

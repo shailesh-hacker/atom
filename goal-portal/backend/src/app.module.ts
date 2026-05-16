@@ -6,6 +6,7 @@ import { CheckinsModule } from './checkins/checkins.module';
 import { AuditModule } from './audit/audit.module';
 import { ReportsModule } from './reports/reports.module';
 import { UsersModule } from './users/users.module';
+import { CyclesModule } from './cycles/cycles.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditInterceptor } from './audit/audit.interceptor';
 
@@ -18,6 +19,7 @@ import { AuditInterceptor } from './audit/audit.interceptor';
     CheckinsModule,
     AuditModule,
     ReportsModule,
+    CyclesModule,
   ],
   providers: [
     {

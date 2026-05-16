@@ -13,9 +13,10 @@ export enum UomType {
 
 export enum GoalStatus {
   DRAFT = 'DRAFT',
-  SUBMITTED = 'SUBMITTED',
+  PENDING = 'PENDING',
   APPROVED = 'APPROVED',
   RETURNED = 'RETURNED',
+  COMPLETED = 'COMPLETED',
 }
 
 export enum ProgressStatus {

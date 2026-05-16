@@ -15,12 +15,22 @@ interface CheckinModalProps {
     uom: string;
   };
   quarter: string;
+  initialAchievement?: number;
+  initialComment?: string;
 }
 
-export default function CheckinModal({ open, onClose, onSave, goal, quarter }: CheckinModalProps) {
-  const [achievement, setAchievement] = useState(0);
+export default function CheckinModal({ 
+  open, 
+  onClose, 
+  onSave, 
+  goal, 
+  quarter,
+  initialAchievement = 0,
+  initialComment = ''
+}: CheckinModalProps) {
+  const [achievement, setAchievement] = useState(initialAchievement);
   const [statusUpdate, setStatusUpdate] = useState('ON_TRACK');
-  const [comment, setComment] = useState('');
+  const [comment, setComment] = useState(initialComment);
 
   if (!open) return null;
 

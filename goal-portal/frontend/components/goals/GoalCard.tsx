@@ -1,7 +1,7 @@
 'use client';
 
 import StatusChip from '@/components/shared/StatusChip';
-import { Lock, Pencil, Trash2, Share2 } from 'lucide-react';
+import { Lock, Pencil, Trash2, Share2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface GoalCardProps {
@@ -13,13 +13,13 @@ interface GoalCardProps {
     uom: string;
     target: number;
     weightage: number;
-    status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'RETURNED';
+    status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'RETURNED' | 'COMPLETED';
     locked: boolean;
     isShared: boolean;
   };
   onEdit?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onCheckin?: (id: string) => void;
+  onSubmitWork?: (id: string) => void;
 }
 
 const uomLabels: Record<string, string> = {
@@ -29,7 +29,7 @@ const uomLabels: Record<string, string> = {
   ZERO_BASED: 'Zero-Based',
 };
 
-export default function GoalCard({ goal, onEdit, onDelete, onCheckin }: GoalCardProps) {
+export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalCardProps) {
   const isDraft = goal.status === 'DRAFT' || goal.status === 'RETURNED';
 
   return (
@@ -82,39 +82,62 @@ export default function GoalCard({ goal, onEdit, onDelete, onCheckin }: GoalCard
       <div className="border-t border-border mx-6" />
 
       {/* Actions */}
-      <div className="px-6 py-3 flex justify-end gap-2">
-        {goal.locked ? (
-          <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary font-medium">
-            <Lock size={14} />
-            Locked
-          </span>
-        ) : isDraft ? (
-          <>
-            <button
-              onClick={() => onEdit?.(goal.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-light rounded-lg transition-colors"
-              aria-label="Edit goal"
-            >
-              <Pencil size={14} />
-              Edit
-            </button>
-            <button
-              onClick={() => onDelete?.(goal.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-light rounded-lg transition-colors"
-              aria-label="Delete goal"
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
-          </>
-        ) : goal.status === 'APPROVED' && onCheckin ? (
-          <button
-            onClick={() => onCheckin(goal.id)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand bg-brand-light hover:bg-brand/10 rounded-lg transition-colors"
-          >
-            Update Progress
-          </button>
-        ) : null}
+      <div className="px-6 py-3 flex items-center justify-between">
+        <div>
+          {goal.locked && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary font-medium bg-surface-container-low px-2 py-1 rounded">
+              <Lock size={12} />
+              Definition Locked
+            </span>
+          )}
+        </div>
+        
+        <div className="flex justify-end gap-2">
+          {isDraft && !goal.locked ? (
+            <>
+              {onEdit && (
+                <button
+                  onClick={() => onEdit(goal.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-light rounded-lg transition-colors"
+                  aria-label="Edit goal"
+                >
+                  <Pencil size={14} />
+                  Edit
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => onDelete(goal.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger-light rounded-lg transition-colors"
+                  aria-label="Delete goal"
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
+              )}
+            </>
+          ) : goal.status === 'APPROVED' ? (
+            <>
+              {/* onCheckin button removed as per user request to submit from goals page directly */}
+              <button
+                onClick={() => onSubmitWork?.(goal.id)}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-brand hover:bg-brand-dark shadow-sm rounded-lg transition-colors"
+              >
+                <CheckCircle size={14} />
+                Submit Work
+              </button>
+            </>
+          ) : goal.status === 'PENDING' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary font-medium">
+              Pending Manager Review
+            </span>
+          ) : goal.status === 'COMPLETED' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-success font-medium bg-success-light/30 px-2 py-1 rounded">
+              <CheckCircle size={14} />
+              Final Work Approved
+            </span>
+          ) : null}
+        </div>
       </div>
     </div>
   );
