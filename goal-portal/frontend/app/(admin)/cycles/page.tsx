@@ -206,43 +206,7 @@ export default function CyclesPage() {
         </div>
       )}
 
-      {/* Unlock Goal Card */}
-      <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
-        <h3 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <Unlock size={16} className="text-warning" />
-          Unlock Goal
-        </h3>
-        <p className="text-sm text-text-secondary mb-4">
-          Enter a goal ID to unlock it for editing. This will be recorded in the audit log.
-        </p>
-        <div className="space-y-4 max-w-lg">
-          <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
-            <input
-              type="text"
-              placeholder="Goal ID..."
-              value={unlockSearch}
-              onChange={(e) => setUnlockSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-border rounded-md text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
-            />
-          </div>
-          <textarea
-            placeholder="Reason for unlock (required)"
-            value={unlockReason}
-            onChange={(e) => setUnlockReason(e.target.value)}
-            rows={3}
-            className="w-full border border-border rounded-md px-4 py-3 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand resize-none"
-          />
-          <button
-            disabled={!unlockReason.trim() || !unlockSearch.trim() || unlockMutation.isPending}
-            onClick={() => unlockMutation.mutate(unlockSearch.trim())}
-            className="px-4 py-2 text-sm font-semibold bg-warning text-white hover:bg-amber-500 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {unlockMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Unlock size={16} />}
-            Unlock Goal
-          </button>
-        </div>
-      </div>
+
     </div>
   );
 }

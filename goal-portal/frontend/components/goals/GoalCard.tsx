@@ -116,7 +116,7 @@ export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalC
                 </button>
               )}
             </>
-          ) : goal.status === 'APPROVED' ? (
+          ) : (goal.status === 'APPROVED' || goal.status === 'RETURNED') ? (
             <>
               {/* onCheckin button removed as per user request to submit from goals page directly */}
               <button

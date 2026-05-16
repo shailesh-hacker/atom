@@ -203,7 +203,7 @@ export class GoalsService {
       where: { id: goalId },
       data: {
         status: GoalStatus.RETURNED,
-        locked: false,
+        locked: true,
         returnReason: reason || null,
       },
     });

@@ -139,13 +139,7 @@ export default function GoalsPage() {
         </div>
       </div>
 
-      {/* Weightage warning */}
-      {!isWeightageValid && goals.length > 0 && (
-        <div className="flex items-center gap-2 text-sm text-warning bg-warning-light px-4 py-3 rounded-lg border border-warning/20">
-          <AlertCircle size={16} />
-          <span>Total weightage must equal 100% before submission. Current: {totalWeightage}%</span>
-        </div>
-      )}
+
 
       {/* Return reason banner */}
       {goals.some((g: any) => g.status === 'RETURNED' && g.returnReason) && (
