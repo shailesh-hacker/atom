@@ -20,9 +20,21 @@ export class GoalsService {
       }
     }
 
-    const goalCount = await this.prisma.goal.count({ where: { employeeId: targetEmployeeId } });
+    const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
+    if (!activeCycle) throw new BadRequestException('No active cycle found');
+    if (activeCycle.phase !== 'GOAL_SETTING') {
+      throw new ForbiddenException('Goal creation is only allowed during the GOAL_SETTING phase');
+    }
+
+    const goalCount = await this.prisma.goal.count({ 
+      where: { employeeId: targetEmployeeId, cycleId: activeCycle.id } 
+    });
     if (goalCount >= 8) {
       throw new BadRequestException('Maximum 8 goals allowed per cycle');
+    }
+
+    if (dto.weightage < 10) {
+      throw new BadRequestException('Minimum weightage per individual goal is 10%');
     }
 
     return this.prisma.goal.create({
@@ -33,7 +45,9 @@ export class GoalsService {
         uom: dto.uom,
         target: dto.target,
         weightage: dto.weightage,
+        isInverse: dto.isInverse ?? false,
         employeeId: targetEmployeeId,
+        cycleId: activeCycle.id,
         status: (creatorRole === Role.MANAGER || creatorRole === Role.ADMIN) ? GoalStatus.APPROVED : GoalStatus.DRAFT,
         locked: (creatorRole === Role.MANAGER || creatorRole === Role.ADMIN) ? true : false,
       },
@@ -144,7 +158,14 @@ export class GoalsService {
   }
 
   async submitAll(userId: string) {
-    const goals = await this.prisma.goal.findMany({ where: { employeeId: userId } });
+    const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
+    if (activeCycle && activeCycle.phase !== 'GOAL_SETTING') {
+      throw new ForbiddenException('Goal submission is only allowed during the GOAL_SETTING phase');
+    }
+
+    const goals = await this.prisma.goal.findMany({ 
+      where: { employeeId: userId, cycleId: activeCycle?.id } 
+    });
     const totalWeightage = goals.reduce((sum, g) => sum + g.weightage, 0);
 
     if (totalWeightage !== 100) {
@@ -242,13 +263,20 @@ export class GoalsService {
   // ── Shared Goals Push ──
   async createShared(dto: SharedGoalDto, primaryOwnerId: string) {
     const { employeeIds, ...goalData } = dto;
+    const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
+    if (!activeCycle) throw new BadRequestException('No active cycle found');
+
+    const sharedGroupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     const creations = employeeIds.map((empId) =>
       this.prisma.goal.create({
         data: {
           ...goalData,
+          isInverse: dto.isInverse ?? false,
           employeeId: empId,
+          cycleId: activeCycle.id,
           isShared: true,
+          sharedGroupId,
           primaryOwnerId,
           status: GoalStatus.APPROVED,
           locked: true,

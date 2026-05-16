@@ -76,6 +76,8 @@ model Goal {
   locked         Boolean     @default(false)
   returnReason   String?
   isShared       Boolean     @default(false)
+  isInverse      Boolean     @default(false)
+  sharedGroupId  String?
   primaryOwnerId String?
   primaryOwner   User?       @relation("PrimaryOwner", fields: [primaryOwnerId], references: [id])
   updates        GoalUpdate[]

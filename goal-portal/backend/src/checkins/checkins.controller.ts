@@ -1,9 +1,12 @@
-import { Controller, Post, Get, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
 import { CheckinsService } from './checkins.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller('checkins')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CheckinsController {
   constructor(private readonly checkinsService: CheckinsService) {}
 
@@ -16,6 +19,12 @@ export class CheckinsController {
       body.statusUpdate,
       body.comment,
     );
+  }
+
+  @Patch(':id/comment')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  async updateComment(@Param('id') id: string, @Body() body: { comment: string }) {
+    return this.checkinsService.updateComment(id, body.comment);
   }
 
   @Get(':goalId')

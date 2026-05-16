@@ -1,4 +1,4 @@
-import { IsEnum, IsNumber, IsOptional, IsString, IsArray, Min, Max } from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, IsString, IsArray, Min, Max, IsBoolean } from 'class-validator';
 import { UomType } from '@prisma/client';
 
 export class CreateGoalDto {
@@ -24,6 +24,10 @@ export class CreateGoalDto {
   weightage: number;
 
   @IsOptional()
+  @IsBoolean()
+  isInverse?: boolean;
+
+  @IsOptional()
   @IsString()
   employeeId?: string;
 }
@@ -35,6 +39,7 @@ export class UpdateGoalDto {
   @IsOptional() @IsEnum(UomType) uom?: UomType;
   @IsOptional() @IsNumber() target?: number;
   @IsOptional() @IsNumber() @Min(10) @Max(100) weightage?: number;
+  @IsOptional() @IsBoolean() isInverse?: boolean;
 }
 
 export class ReturnGoalDto {
@@ -69,6 +74,10 @@ export class SharedGoalDto {
   @Min(10)
   @Max(100)
   weightage: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isInverse?: boolean;
 
   @IsArray()
   @IsString({ each: true })
