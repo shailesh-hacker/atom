@@ -391,7 +391,12 @@ export default function TeamDashboardPage() {
                                   </div>
                                   <p className="text-sm font-medium text-text-primary">{goal.title}</p>
                                   <p className="text-xs text-text-secondary mt-1">
-                                    Target: {goal.target} · Weightage: {goal.weightage}%
+                                    Target: {goal.uom === 'TIMELINE' ? (
+                                      (() => {
+                                        const s = String(goal.target);
+                                        return s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : goal.target;
+                                      })()
+                                    ) : goal.target} · Weightage: {goal.weightage}%
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2 ml-4">

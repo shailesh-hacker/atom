@@ -69,7 +69,13 @@ export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalC
         <div>
           <span className="text-xs font-medium text-text-secondary uppercase tracking-wide">Target</span>
           <p className="font-semibold text-text-primary">
-            {goal.uom === 'PERCENTAGE' ? `${goal.target}%` : goal.target}
+            {goal.uom === 'PERCENTAGE' ? `${goal.target}%` : 
+             goal.uom === 'TIMELINE' ? (
+               (() => {
+                 const s = String(goal.target);
+                 return s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : goal.target;
+               })()
+             ) : goal.target}
           </p>
         </div>
         <div>

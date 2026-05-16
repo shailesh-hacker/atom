@@ -12,7 +12,7 @@ const goalSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(120, 'Title cannot exceed 120 characters'),
   description: z.string().max(500, 'Description cannot exceed 500 characters').optional().or(z.literal('')),
   uom: z.enum(['NUMERIC', 'PERCENTAGE', 'TIMELINE', 'ZERO_BASED']),
-  target: z.number({ error: 'Target is required' }).min(0, 'Target must be positive'),
+  target: z.any(), // Will be validated manually or handled by input type
   weightage: z.number().min(10, 'Min weightage is 10%').max(100, 'Max weightage is 100%'),
   employeeIds: z.array(z.string()).optional(),
 });
@@ -77,17 +77,38 @@ export default function CreateGoalSlideOver({
   // Reset form when slide-over opens with new data
   useEffect(() => {
     if (open) {
+      let displayTarget = initialData?.target || 0;
+      
+      // If TIMELINE, convert numeric YYYYMMDD to YYYY-MM-DD string
+      if (initialData?.uom === 'TIMELINE' && typeof displayTarget === 'number' && displayTarget > 10000000) {
+        const s = String(displayTarget);
+        displayTarget = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` as any;
+      }
+
       reset({
         thrustArea: initialData?.thrustArea || '',
         title: initialData?.title || '',
         description: initialData?.description || '',
         uom: initialData?.uom || 'NUMERIC',
-        target: initialData?.target || 0,
+        target: displayTarget,
         weightage: initialData?.weightage || 10,
         employeeIds: targetEmployeeId ? [targetEmployeeId] : [],
       });
     }
   }, [open, initialData, reset, targetEmployeeId]);
+
+  const handleFormSubmit = (values: GoalFormValues) => {
+    const finalData = { ...values };
+    
+    // If TIMELINE, convert YYYY-MM-DD string to numeric YYYYMMDD
+    if (finalData.uom === 'TIMELINE' && typeof finalData.target === 'string') {
+      finalData.target = Number(finalData.target.replace(/-/g, ''));
+    } else if (typeof finalData.target === 'string') {
+      finalData.target = Number(finalData.target);
+    }
+    
+    onSave(finalData);
+  };
 
   const titleValue = watch('title') || '';
   const uomValue = watch('uom');
@@ -139,7 +160,7 @@ export default function CreateGoalSlideOver({
 
         {/* Scrollable Form Body */}
         <form
-          onSubmit={handleSubmit(onSave)}
+          onSubmit={handleSubmit(handleFormSubmit)}
           className="flex-1 overflow-y-auto custom-scrollbar flex flex-col"
         >
           <div className="p-6 space-y-6 flex-1">
