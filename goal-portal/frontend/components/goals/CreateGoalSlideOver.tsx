@@ -14,6 +14,7 @@ const goalSchema = z.object({
   uom: z.enum(['NUMERIC', 'PERCENTAGE', 'TIMELINE', 'ZERO_BASED']),
   target: z.any(), // Will be validated manually or handled by input type
   weightage: z.number().min(10, 'Min weightage is 10%').max(100, 'Max weightage is 100%'),
+  isInverse: z.boolean().optional(),
   employeeIds: z.array(z.string()).optional(),
 });
 
