@@ -8,6 +8,17 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import api from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+
+interface ReturnTarget {
+  goalId?: string;       // single goal return
+  employee?: any;        // bulk return (all pending goals for this employee)
+}
 
 interface Goal {
   id: string;
@@ -51,6 +62,13 @@ export default function TeamDashboardPage() {
     initialData?: any;
     goalId?: string;
   }>({ open: false, mode: 'INDIVIDUAL' });
+
+  // Return dialog state
+  const [returnDialog, setReturnDialog] = useState<{ open: boolean; target: ReturnTarget }>({
+    open: false, target: {},
+  });
+  const [returnReason, setReturnReason] = useState('');
+  const [returning, setReturning] = useState(false);
 
   const fetchTeamGoals = useCallback(async () => {
     try {
@@ -153,20 +171,38 @@ export default function TeamDashboardPage() {
     }
   };
 
-  const handleReturn = async (goalId: string) => {
-    const reason = window.prompt('Please enter a reason for returning this goal:');
-    if (!reason) return;
+  const openReturnDialog = (target: ReturnTarget) => {
+    setReturnReason('');
+    setReturnDialog({ open: true, target });
+  };
 
-    setActionLoading(goalId);
+  const handleConfirmReturn = async () => {
+    if (!returnReason.trim()) {
+      toast.error('Please enter a reason before returning.');
+      return;
+    }
+    setReturning(true);
     try {
-      await api.patch(`/goals/${goalId}/return`, { reason });
-      toast.success('Goal returned for rework.');
+      const { target } = returnDialog;
+      if (target.goalId) {
+        await api.patch(`/goals/${target.goalId}/return`, { reason: returnReason });
+        toast.success('Goal returned for rework.');
+      } else if (target.employee) {
+        const pending = target.employee.goals.filter((g: any) => g.status === 'PENDING');
+        await Promise.all(pending.map((g: any) => api.patch(`/goals/${g.id}/return`, { reason: returnReason })));
+        toast.success(`All goals returned for ${target.employee.name}.`);
+      }
+      setReturnDialog({ open: false, target: {} });
       fetchTeamGoals();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to return goal');
+      toast.error(err?.response?.data?.message || 'Failed to return goal(s)');
     } finally {
-      setActionLoading(null);
+      setReturning(false);
     }
+  };
+
+  const handleReturn = async (goalId: string) => {
+    openReturnDialog({ goalId }); return;
   };
 
   const handleApproveAll = async (employee: EmployeeGroup) => {
@@ -184,16 +220,7 @@ export default function TeamDashboardPage() {
     const submittedGoals = employee.goals.filter((g) => g.status === 'PENDING');
     if (submittedGoals.length === 0) return;
 
-    const reason = window.prompt(`Please enter a reason for returning ${submittedGoals.length} goals for ${employee.name}:`);
-    if (!reason) return;
-
-    try {
-      await Promise.all(submittedGoals.map((g) => api.patch(`/goals/${g.id}/return`, { reason })));
-      toast.success('All goals returned for rework.');
-      fetchTeamGoals();
-    } catch (err: any) {
-      toast.error('Some goals failed to return');
-    }
+    openReturnDialog({ employee }); return;
   };
 
   if (loading) {
@@ -508,6 +535,38 @@ export default function TeamDashboardPage() {
         initialData={(slideOver as any).initialData}
         availableEmployees={teamData.map(e => ({ id: e.id, name: e.name }))}
       />
+
+      {/* Return Reason Dialog */}
+      <Dialog open={returnDialog.open} onOpenChange={(open) => !returning && setReturnDialog({ open, target: {} })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Return for Rework</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="return-reason" className="text-sm font-medium text-text-primary">
+              Reason <span className="text-danger">*</span>
+            </Label>
+            <Textarea
+              id="return-reason"
+              placeholder="Explain what needs to be changed..."
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              rows={4}
+              className="resize-none"
+            />
+            <p className="text-xs text-text-secondary">This message will be visible to the employee.</p>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setReturnDialog({ open: false, target: {} })} disabled={returning}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmReturn} disabled={returning || !returnReason.trim()}>
+              {returning ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+              Confirm Return
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

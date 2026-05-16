@@ -6,7 +6,7 @@ import { UomType } from '@prisma/client';
 export class CheckinsService {
   constructor(private prisma: PrismaService) {}
 
-  async createUpdate(goalId: string, achievement: number, quarter: string, statusUpdate: string, comment?: string) {
+  async createUpdate(goalId: string, userId: string, achievement: number, quarter: string, statusUpdate: string, comment?: string) {
     const goal = await this.prisma.goal.findUnique({ 
       where: { id: goalId },
       include: { cycle: true }
@@ -18,43 +18,31 @@ export class CheckinsService {
       if (goal.cycle.phase === 'GOAL_SETTING') {
         throw new ForbiddenException('Check-ins are not allowed during Goal Setting phase');
       }
-      // Optional: enforce quarter match (e.g. only Q1 updates during Q1_CHECKIN)
-      if (goal.cycle.phase.startsWith('Q') && !goal.cycle.phase.includes(quarter)) {
-         throw new ForbiddenException(`You can only log ${goal.cycle.phase.split('_')[0]} updates currently`);
+      const phaseToQuarter: Record<string, string> = {
+        Q1_CHECKIN: 'Q1', Q2_CHECKIN: 'Q2', Q3_CHECKIN: 'Q3', Q4_CHECKIN: 'Q4',
+      };
+      const expectedQuarter = phaseToQuarter[goal.cycle.phase];
+      if (expectedQuarter && expectedQuarter !== quarter) {
+        throw new ForbiddenException(`You can only log ${expectedQuarter} updates currently`);
       }
     }
 
     const progressScore = this.computeScore(goal, achievement);
 
     const update = await this.prisma.goalUpdate.create({
-      data: {
-        goalId,
-        achievement,
-        quarter,
-        statusUpdate,
-        comment,
-        progressScore,
-      },
+      data: { goalId, achievement, quarter, statusUpdate, comment, progressScore },
     });
 
-    // Achievement sync for shared goals
-    if (goal.isShared && goal.sharedGroupId) {
-      // Find all goals in same group except the current one
+    // Sync ONLY if this user is the primary owner of a shared goal
+    if (goal.isShared && goal.sharedGroupId && goal.primaryOwnerId === userId) {
       const linkedGoals = await this.prisma.goal.findMany({
-        where: { 
-          sharedGroupId: goal.sharedGroupId,
-          id: { not: goalId }
-        }
+        where: { sharedGroupId: goal.sharedGroupId, id: { not: goalId } }
       });
-
       if (linkedGoals.length > 0) {
-        await Promise.all(linkedGoals.map(lg => 
+        await Promise.all(linkedGoals.map(lg =>
           this.prisma.goalUpdate.create({
             data: {
-              goalId: lg.id,
-              achievement,
-              quarter,
-              statusUpdate,
+              goalId: lg.id, achievement, quarter, statusUpdate,
               comment: `Synced from Primary Owner: ${comment || ''}`,
               progressScore: this.computeScore(lg, achievement)
             }
