@@ -16,7 +16,7 @@ const navTabs = {
   MANAGER: [
     { name: 'Team Goals', href: '/team' },
     { name: 'Approvals', href: '/approvals' },
-    { name: 'Check-ins', href: '/checkins' },
+    { name: 'Check-ins', href: '/team-checkins' },
     { name: 'Reports', href: '/reports' },
   ],
   ADMIN: [
