@@ -395,41 +395,45 @@ export default function TeamDashboardPage() {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2 ml-4">
-                                    <button
-                                      onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        setSlideOver({ 
-                                          open: true, 
-                                          mode: 'INDIVIDUAL', 
-                                          targetEmployeeId: employee.id,
-                                          initialData: {
-                                            thrustArea: goal.thrustArea,
-                                            title: goal.title,
-                                            description: goal.description || '',
-                                            uom: goal.uom,
-                                            target: goal.target,
-                                            weightage: goal.weightage,
-                                          },
-                                          goalId: goal.id
-                                        }); 
-                                      }}
-                                      className="p-1.5 rounded-lg hover:bg-brand-light text-brand transition-colors"
-                                      title="Edit Goal"
-                                    >
-                                      <Pencil size={14} />
-                                    </button>
-                                    <button
-                                      onClick={(e) => { 
-                                        e.stopPropagation(); 
-                                        if (confirm('Are you sure you want to delete this goal?')) {
-                                          deleteMutation.mutate(goal.id);
-                                        }
-                                      }}
-                                      className="p-1.5 rounded-lg hover:bg-danger-light text-danger transition-colors"
-                                      title="Delete Goal"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
+                                    {goal.status !== 'COMPLETED' && (
+                                      <>
+                                        <button
+                                          onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            setSlideOver({ 
+                                              open: true, 
+                                              mode: 'INDIVIDUAL', 
+                                              targetEmployeeId: employee.id,
+                                              initialData: {
+                                                thrustArea: goal.thrustArea,
+                                                title: goal.title,
+                                                description: goal.description || '',
+                                                uom: goal.uom,
+                                                target: goal.target,
+                                                weightage: goal.weightage,
+                                              },
+                                              goalId: goal.id
+                                            }); 
+                                          }}
+                                          className="p-1.5 rounded-lg hover:bg-brand-light text-brand transition-colors"
+                                          title="Edit Goal"
+                                        >
+                                          <Pencil size={14} />
+                                        </button>
+                                        <button
+                                          onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            if (confirm('Are you sure you want to delete this goal?')) {
+                                              deleteMutation.mutate(goal.id);
+                                            }
+                                          }}
+                                          className="p-1.5 rounded-lg hover:bg-danger-light text-danger transition-colors"
+                                          title="Delete Goal"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </>
+                                    )}
                                     {goal.status === 'PENDING' && (
                                       <>
                                         <button
