@@ -6,6 +6,7 @@ import { Target, ChevronDown, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import RoleBadge from './RoleBadge';
 import { useState, useRef, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 
 const navTabs = {
   EMPLOYEE: [
@@ -29,10 +30,9 @@ export default function Navbar() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { user, logout } = useAuth();
 
-  // Mock user — in production, pull from useAuth()
-  const user = { name: 'Shailesh K.', role: 'EMPLOYEE' as const };
-  const tabs = navTabs[user.role] || navTabs.EMPLOYEE;
+  const tabs = navTabs[user?.role as keyof typeof navTabs] || navTabs.EMPLOYEE;
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -47,6 +47,14 @@ export default function Navbar() {
 
   // Don't show navbar on login page
   if (pathname === '/login') return null;
+
+  // Don't render until user is available
+  if (!user) return null;
+
+  const initials = user.name
+    .split(' ')
+    .map((n) => n[0])
+    .join('');
 
   return (
     <header className="sticky top-0 z-30 bg-surface border-b border-border shadow-sm h-16">
@@ -90,9 +98,7 @@ export default function Navbar() {
             aria-label="User menu"
           >
             <div className="h-8 w-8 rounded-full bg-brand-light border border-border flex items-center justify-center">
-              <span className="text-brand font-semibold text-sm">
-                {user.name.split(' ').map((n) => n[0]).join('')}
-              </span>
+              <span className="text-brand font-semibold text-sm">{initials}</span>
             </div>
             <span className="text-sm font-medium text-text-primary hidden sm:block">{user.name}</span>
             <RoleBadge role={user.role} className="hidden lg:inline-flex" />
@@ -103,12 +109,12 @@ export default function Navbar() {
             <div className="absolute right-0 top-12 bg-surface border border-border rounded-xl shadow-md py-2 min-w-[180px] z-50">
               <div className="px-4 py-2 border-b border-border">
                 <p className="text-sm font-semibold text-text-primary">{user.name}</p>
-                <p className="text-xs text-text-secondary">{user.role}</p>
+                <p className="text-xs text-text-secondary">{user.email}</p>
               </div>
               <button
                 onClick={() => {
-                  localStorage.removeItem('token');
-                  window.location.href = '/login';
+                  setMenuOpen(false);
+                  logout();
                 }}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger hover:bg-danger-light transition-colors"
               >

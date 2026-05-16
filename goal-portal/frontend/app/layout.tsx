@@ -24,15 +24,13 @@ export default function RootLayout({
       </head>
       <body className={`${inter.variable} font-sans bg-background min-h-screen antialiased`}>
         <Providers>
-          <Navbar />
-          <main>
-            <div className="max-w-[1280px] mx-auto px-6 py-8">
-              {children}
-            </div>
-          </main>
+          <AppShell>{children}</AppShell>
           <Toaster position="bottom-right" richColors closeButton />
         </Providers>
       </body>
     </html>
   );
 }
+
+// Client component wrapper to handle auth guard logic
+import AppShell from "@/components/shared/AppShell";

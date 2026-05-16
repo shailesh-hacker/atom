@@ -1,12 +1,19 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: 'EMPLOYEE' | 'MANAGER' | 'ADMIN';
+}
+
 interface AuthContextType {
-  user: any;
-  login: (credentials: any) => Promise<void>;
+  user: User | null;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
 }
@@ -14,32 +21,47 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
+    const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        // Invalid JSON in localStorage — clear it
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     setIsLoading(false);
   }, []);
 
-  const login = async (credentials: any) => {
+  const login = useCallback(async (credentials: { email: string; password: string }) => {
     const { data } = await api.post('/auth/login', credentials);
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));
     setUser(data.user);
-    router.push('/goals');
-  };
 
-  const logout = () => {
+    // Role-based redirect
+    if (data.user.role === 'ADMIN') {
+      router.push('/users');
+    } else if (data.user.role === 'MANAGER') {
+      router.push('/team');
+    } else {
+      router.push('/goals');
+    }
+  }, [router]);
+
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     router.push('/login');
-  };
+  }, [router]);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, isLoading }}>

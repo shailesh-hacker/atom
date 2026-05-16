@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Target, Eye, EyeOff, ArrowRight, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -9,18 +10,16 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      // Simulate API call
-      await new Promise((r) => setTimeout(r, 1500));
-      // TODO: integrate with useAuth().login()
-      window.location.href = '/goals';
-    } catch {
-      setError('Invalid email or password. Please try again.');
+      await login({ email, password });
+    } catch (err: any) {
+      setError(err?.response?.data?.message || 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }
