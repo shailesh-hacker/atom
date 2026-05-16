@@ -104,7 +104,9 @@ export class GoalsService {
       throw new ForbiddenException('Cannot edit a completed goal');
     }
 
-    if (goal.locked) throw new ForbiddenException('Goal is locked and cannot be edited');
+    if (goal.locked && userRole === Role.EMPLOYEE) {
+      throw new ForbiddenException('Goal is locked and cannot be edited');
+    }
 
     if (goal.isShared) {
       delete dto.title;
