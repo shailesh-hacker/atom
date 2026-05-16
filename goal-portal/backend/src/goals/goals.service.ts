@@ -96,12 +96,12 @@ export class GoalsService {
       if (goal.employee.managerId !== userId) {
         throw new ForbiddenException('You can only edit goals for your direct reports');
       }
-    } else if (userRole === Role.EMPLOYEE) {
-      if (goal.employeeId !== userId) {
-        throw new ForbiddenException('You can only edit your own goals');
-      }
     } else {
-      throw new ForbiddenException('Unauthorized to edit this goal');
+      throw new ForbiddenException('Employees cannot edit goal definitions');
+    }
+
+    if (goal.status === GoalStatus.COMPLETED) {
+      throw new ForbiddenException('Cannot edit a completed goal');
     }
 
     if (goal.locked) throw new ForbiddenException('Goal is locked and cannot be edited');
@@ -213,15 +213,21 @@ export class GoalsService {
   }
 
   // ── Manager Inline-Edit (target + weightage before approval) ──
-  async managerEdit(goalId: string, managerId: string, dto: ManagerEditGoalDto) {
+  async managerEdit(goalId: string, managerId: string, managerRole: Role, dto: ManagerEditGoalDto) {
     const goal = await this.prisma.goal.findUnique({
       where: { id: goalId },
       include: { employee: true },
     });
 
     if (!goal) throw new NotFoundException('Goal not found');
-    if (goal.employee.managerId !== managerId) throw new ForbiddenException('Not your report');
-    if (goal.status === GoalStatus.APPROVED) throw new ForbiddenException('Cannot edit an approved goal');
+    
+    if (managerRole !== Role.ADMIN && goal.employee.managerId !== managerId) {
+      throw new ForbiddenException('You can only edit goals for your direct reports');
+    }
+
+    if (goal.status === GoalStatus.COMPLETED) {
+      throw new ForbiddenException('Cannot edit a completed goal');
+    }
 
     const updateData: any = {};
     if (dto.target !== undefined) updateData.target = dto.target;

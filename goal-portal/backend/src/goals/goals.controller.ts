@@ -67,7 +67,7 @@ export class GoalsController {
   @Patch(':id/manager-edit')
   @Roles(Role.MANAGER, Role.ADMIN)
   async managerEdit(@Request() req, @Param('id') id: string, @Body() dto: ManagerEditGoalDto) {
-    return this.goalsService.managerEdit(id, req.user.id, dto);
+    return this.goalsService.managerEdit(id, req.user.id, req.user.role, dto);
   }
 
   @Post('shared')
