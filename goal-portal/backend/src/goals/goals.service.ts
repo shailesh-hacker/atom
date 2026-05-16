@@ -134,8 +134,8 @@ export class GoalsService {
       throw new ForbiddenException('Employees cannot delete goals');
     }
 
-    if (goal.status !== GoalStatus.DRAFT && goal.status !== GoalStatus.RETURNED && userRole !== Role.ADMIN) {
-      throw new ForbiddenException('Only draft or returned goals can be deleted');
+    if (goal.status !== GoalStatus.DRAFT && goal.status !== GoalStatus.RETURNED && goal.status !== GoalStatus.APPROVED && userRole !== Role.ADMIN) {
+      throw new ForbiddenException('Only draft, returned, or approved goals can be deleted');
     }
 
     // Delete dependent check-in records first
