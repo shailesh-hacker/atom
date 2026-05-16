@@ -30,7 +30,7 @@ const uomLabels: Record<string, string> = {
 };
 
 export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalCardProps) {
-  const isDraft = goal.status === 'DRAFT' || goal.status === 'RETURNED';
+
 
   return (
     <div className="bg-surface rounded-xl border border-border shadow-sm hover:shadow-md transition-shadow">
@@ -93,7 +93,7 @@ export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalC
         </div>
         
         <div className="flex justify-end gap-2">
-          {isDraft && !goal.locked ? (
+          {goal.status === 'DRAFT' && !goal.locked ? (
             <>
               {onEdit && (
                 <button
