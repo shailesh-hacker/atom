@@ -35,8 +35,8 @@ export default function CheckinsPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to save check-in'),
   });
 
-  // Only show approved goals for check-ins
-  const approvedGoals = goals.filter((g: any) => g.status === 'APPROVED');
+  // Only show approved or completed goals for check-ins
+  const approvedGoals = goals.filter((g: any) => ['APPROVED', 'COMPLETED'].includes(g.status));
 
   if (isLoading) {
     return (
@@ -107,7 +107,7 @@ export default function CheckinsPage() {
           <p className="text-2xl font-bold text-text-primary">
             {approvedGoals.length > 0 
               ? Math.round(approvedGoals.reduce((sum: number, g: any) => {
-                  const latest = g.updates?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+                  const latest = g.updates ? [...g.updates].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] : null;
                   return sum + (latest?.progressScore || 0);
                 }, 0) / approvedGoals.length * 100)
               : 0}%
@@ -129,8 +129,10 @@ export default function CheckinsPage() {
         <div className="space-y-4">
           {approvedGoals.map((goal: any) => {
             const latestUpdate = goal.updates
-              ?.filter((u: any) => u.quarter === selectedQuarter)
-              ?.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+              ? [...goal.updates]
+                  .filter((u: any) => u.quarter === selectedQuarter)
+                  .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+              : null;
 
             const score = latestUpdate?.progressScore != null
               ? Math.round(latestUpdate.progressScore * 100)

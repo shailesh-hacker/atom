@@ -55,35 +55,24 @@ export class GoalsService {
   }
 
   async findAll(userId: string, role: Role, managerId?: string) {
-    if (role === Role.ADMIN) {
-      if (managerId) {
-        return this.prisma.goal.findMany({
-          where: { employee: { managerId } },
-          include: { employee: true, updates: true },
-        });
-      }
-      return this.prisma.goal.findMany({ include: { employee: true, updates: true } });
-    }
-    
-    if (role === Role.MANAGER) {
-      // Manager fetching their team's goals
+    if (role === Role.ADMIN && managerId) {
       return this.prisma.goal.findMany({
-        where: { employee: { managerId: userId } },
+        where: { employee: { managerId } },
         include: { employee: true, updates: true },
       });
     }
 
-    // Default: fetch own goals
+    // Default for everyone (Employee, Manager, Admin without filter): fetch own goals
     return this.prisma.goal.findMany({
       where: { employeeId: userId },
-      include: { updates: true },
+      include: { employee: true, updates: true },
     });
   }
 
   async findTeamGoals(managerId: string) {
     const users = await this.prisma.user.findMany({
       where: { managerId: managerId },
-      include: { goals: true },
+      include: { goals: { include: { updates: true } } },
       orderBy: { name: 'asc' },
     });
     

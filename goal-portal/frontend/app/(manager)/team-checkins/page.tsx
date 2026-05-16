@@ -201,9 +201,11 @@ export default function ManagerCheckinsPage() {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {approvedGoals.map((goal: any) => {
-                            const update = (goal.updates || [])
-                              .filter((u: any) => u.quarter === selectedQuarter)
-                              .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+                            const update = (goal.updates || []).length > 0
+                              ? [...goal.updates]
+                                  .filter((u: any) => u.quarter === selectedQuarter)
+                                  .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+                              : null;
 
                             const isEditingThis = editingComment?.updateId === update?.id;
 
