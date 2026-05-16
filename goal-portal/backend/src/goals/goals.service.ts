@@ -90,15 +90,18 @@ export class GoalsService {
     });
     if (!goal) throw new NotFoundException('Goal not found');
 
-    // Only Admin or the direct Manager can update goal definitions
     if (userRole === Role.ADMIN) {
       // Admin can do anything
     } else if (userRole === Role.MANAGER) {
       if (goal.employee.managerId !== userId) {
         throw new ForbiddenException('You can only edit goals for your direct reports');
       }
+    } else if (userRole === Role.EMPLOYEE) {
+      if (goal.employeeId !== userId) {
+        throw new ForbiddenException('You can only edit your own goals');
+      }
     } else {
-      throw new ForbiddenException('Employees cannot edit goal definitions');
+      throw new ForbiddenException('Unauthorized to edit this goal');
     }
 
     if (goal.locked) throw new ForbiddenException('Goal is locked and cannot be edited');
@@ -158,8 +161,8 @@ export class GoalsService {
     const goal = await this.prisma.goal.findUnique({ where: { id: goalId } });
     if (!goal) throw new NotFoundException('Goal not found');
     if (goal.employeeId !== userId) throw new ForbiddenException('Not your goal');
-    if (goal.status !== GoalStatus.APPROVED) {
-      throw new BadRequestException('Only approved goals can be submitted as completed work');
+    if (goal.status !== GoalStatus.APPROVED && goal.status !== GoalStatus.RETURNED) {
+      throw new BadRequestException('Only approved or returned goals can be submitted as completed work');
     }
 
     return this.prisma.goal.update({
