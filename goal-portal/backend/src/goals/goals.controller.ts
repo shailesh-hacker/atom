@@ -18,7 +18,7 @@ export class GoalsController {
   }
 
   @Post()
-  @Roles(Role.MANAGER, Role.ADMIN)
+  @Roles(Role.EMPLOYEE, Role.MANAGER, Role.ADMIN)
   async create(@Request() req, @Body() dto: CreateGoalDto) {
     return this.goalsService.create(req.user.id, req.user.role, dto);
   }

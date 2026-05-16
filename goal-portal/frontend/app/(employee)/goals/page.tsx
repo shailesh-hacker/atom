@@ -14,6 +14,14 @@ import { useGoals } from '@/hooks/useGoals';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 
+const getCurrentQuarter = () => {
+  const month = new Date().getMonth();
+  if (month < 3) return 'Q1';
+  if (month < 6) return 'Q2';
+  if (month < 9) return 'Q3';
+  return 'Q4';
+};
+
 export default function GoalsPage() {
   const queryClient = useQueryClient();
   const { data: goals = [], isLoading, error } = useGoals();
@@ -22,11 +30,29 @@ export default function GoalsPage() {
   const [checkinModal, setCheckinModal] = useState<{ open: boolean; goalId: string | null }>({ open: false, goalId: null });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; goalId: string | null }>({ open: false, goalId: null });
 
+  const currentQuarter = getCurrentQuarter();
 
+  // ── Update Goal Mutation (Fix 5: Edit Goal Wiring) ──
+  const updateGoalMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.patch(`/goals/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success('Goal updated successfully!');
+      setSlideOver({ open: false, goal: null });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to update goal'),
+  });
 
-
-
-
+  // ── Create Goal Mutation ──
+  const createGoalMutation = useMutation({
+    mutationFn: (data: any) => api.post('/goals', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success('Goal created successfully!');
+      setSlideOver({ open: false, goal: null });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to create goal'),
+  });
 
   // ── Submit All Mutation ──
   const submitMutation = useMutation({
@@ -63,8 +89,6 @@ export default function GoalsPage() {
   const isWeightageValid = totalWeightage === 100;
   const canAddGoal = goals.length < 8;
   const hasDraftGoals = goals.some((g: any) => g.status === 'DRAFT');
-
-
 
   const activeCheckinGoal = goals.find((g: any) => g.id === checkinModal.goalId);
 
@@ -149,6 +173,7 @@ export default function GoalsPage() {
               key={goal.id}
               goal={goal}
               onSubmitWork={(id) => submitWorkMutation.mutate(id)}
+              onEdit={(goal) => setSlideOver({ open: true, goal })}
             />
           ))}
         </div>
@@ -157,19 +182,30 @@ export default function GoalsPage() {
       {/* Weightage Distribution Bar */}
       {goals.length > 0 && <WeightageBar goals={goals} />}
 
-
+      {/* Edit Goal Slide-Over */}
+      <CreateGoalSlideOver
+        open={slideOver.open}
+        onClose={() => setSlideOver({ open: false, goal: null })}
+        onSave={(data) => {
+          if (slideOver.goal) {
+            updateGoalMutation.mutate({ id: slideOver.goal.id, data });
+          } else {
+            createGoalMutation.mutate(data);
+          }
+        }}
+        initialData={slideOver.goal}
+      />
 
       {/* Check-in Modal */}
       {activeCheckinGoal && (
         <CheckinModal
           open={checkinModal.open}
           onClose={() => setCheckinModal({ open: false, goalId: null })}
-          onSave={(data) => checkinMutation.mutate({ ...data, goalId: activeCheckinGoal.id, quarter: 'Q1' })}
+          onSave={(data) => checkinMutation.mutate({ ...data, goalId: activeCheckinGoal.id, quarter: currentQuarter })}
           goal={activeCheckinGoal}
-          quarter="Q1"
+          quarter={currentQuarter}
         />
       )}
-
 
     </div>
   );
