@@ -263,7 +263,7 @@ export default function ManagerCheckinsPage() {
                                 <td className="px-6 py-4 min-w-[220px]">
                                   {!update ? (
                                     <span className="text-xs text-text-secondary italic">Employee hasn't logged yet</span>
-                                  ) : isEditingThis ? (
+                                  ) : (isEditingThis && editingComment) ? (
                                     <div className="space-y-2">
                                       <textarea
                                         autoFocus
