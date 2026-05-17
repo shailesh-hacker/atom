@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,7 +27,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex relative">
       {/* Left Panel — Brand gradient (hidden on mobile) */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-brand via-primary-container to-brand-dark relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZG90cyIgeD0iMCIgeT0iMCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxLjUiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNkb3RzKSIvPjwvc3ZnPg==')] opacity-60" />
@@ -141,12 +142,40 @@ export default function LoginPage() {
           </form>
 
           <p className="text-center mt-6">
-            <a href="#" className="text-sm text-text-secondary hover:text-brand font-medium transition-colors">
+            <button
+              onClick={() => setShowForgotModal(true)}
+              className="text-sm text-text-secondary hover:text-brand font-medium transition-colors focus:outline-none"
+            >
               Forgot password?
-            </a>
+            </button>
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface border border-border w-full max-w-sm rounded-xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="p-2 bg-brand-light rounded-lg text-brand">
+                <Target size={24} className="stroke-[2.5]" />
+              </span>
+              <h3 className="text-lg font-bold text-text-primary">Reset Password</h3>
+            </div>
+            
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Please contact the system administrator to change or reset your workspace password.
+            </p>
+            
+            <button
+              onClick={() => setShowForgotModal(false)}
+              className="w-full bg-brand hover:bg-brand-dark text-white py-2.5 rounded-lg font-semibold text-sm transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
