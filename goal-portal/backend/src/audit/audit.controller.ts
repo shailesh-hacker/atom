@@ -16,7 +16,7 @@ export class AuditController {
     return this.prisma.auditLog.findMany({
       include: { user: true },
       orderBy: { timestamp: 'desc' },
-      take: 100,
+      take: 500,
     });
   }
 }

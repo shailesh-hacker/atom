@@ -20,6 +20,8 @@ const actionColors: Record<string, { bg: string; text: string }> = {
 export default function AuditPage() {
   const [actionFilter, setActionFilter] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['audit-logs'],
@@ -34,6 +36,10 @@ export default function AuditPage() {
     if (actionFilter === 'ALL') return matchesSearch;
     return matchesSearch && log.action === actionFilter;
   });
+
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + itemsPerPage);
 
   if (isLoading) {
     return (
@@ -64,13 +70,19 @@ export default function AuditPage() {
             type="text"
             placeholder="Search by user name..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-10 pr-4 py-2.5 border border-border rounded-md text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
           />
         </div>
         <select
           value={actionFilter}
-          onChange={(e) => setActionFilter(e.target.value)}
+          onChange={(e) => {
+            setActionFilter(e.target.value);
+            setCurrentPage(1);
+          }}
           className="border border-border rounded-md px-4 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
         >
           <option value="ALL">All Actions</option>
@@ -103,7 +115,7 @@ export default function AuditPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filteredLogs.map((log: any) => {
+              {paginatedLogs.map((log: any) => {
                 const colors = actionColors[log.action] || actionColors.UPDATE;
                 return (
                   <tr key={log.id} className="hover:bg-background/50 transition-colors">
@@ -146,18 +158,49 @@ export default function AuditPage() {
       )}
 
       {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-text-secondary">Showing {filteredLogs.length} of {logs.length} entries</p>
-        <div className="flex gap-1">
-          <button className="p-2 border border-border rounded-md hover:bg-background transition-colors" aria-label="Previous page">
-            <ChevronLeft size={16} className="text-text-secondary" />
-          </button>
-          <button className="px-3 py-1 border border-brand bg-brand-light text-brand text-sm font-medium rounded-md">1</button>
-          <button className="p-2 border border-border rounded-md hover:bg-background transition-colors" aria-label="Next page">
-            <ChevronRight size={16} className="text-text-secondary" />
-          </button>
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border pt-4">
+          <p className="text-sm text-text-secondary">
+            Showing <span className="font-semibold text-text-primary">{filteredLogs.length > 0 ? startIndex + 1 : 0}</span> to{' '}
+            <span className="font-semibold text-text-primary">{Math.min(startIndex + itemsPerPage, filteredLogs.length)}</span> of{' '}
+            <span className="font-semibold text-text-primary">{filteredLogs.length}</span> entries
+          </p>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2 border border-border rounded-md hover:bg-background transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-surface"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={16} className="text-text-secondary" />
+            </button>
+            
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+               <button
+                 key={p}
+                 onClick={() => setCurrentPage(p)}
+                 className={cn(
+                   'px-3 py-1 border text-sm font-semibold rounded-md transition-colors',
+                   currentPage === p
+                     ? 'border-brand bg-brand-light text-brand shadow-sm font-bold'
+                     : 'border-border text-text-secondary hover:text-text-primary bg-surface'
+                 )}
+               >
+                 {p}
+               </button>
+            ))}
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="p-2 border border-border rounded-md hover:bg-background transition-colors disabled:opacity-40 disabled:cursor-not-allowed bg-surface"
+              aria-label="Next page"
+            >
+              <ChevronRight size={16} className="text-text-secondary" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
