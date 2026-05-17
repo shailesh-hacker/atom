@@ -15,7 +15,8 @@ async function main() {
   console.log('Resetting system data...');
   await prisma.goalUpdate.deleteMany({});
   await prisma.goal.deleteMany({});
-  console.log('Existing goals and updates cleared.');
+  await prisma.cycle.deleteMany({});
+  console.log('Existing goals, updates, and cycles cleared.');
 
   // Create Admin
   const admin = await prisma.user.upsert({
@@ -56,13 +57,13 @@ async function main() {
 
   // Create a default Cycle
   const cycle = await prisma.cycle.upsert({
-    where: { id: 'default-cycle-fy2526' },
+    where: { id: 'default-cycle-fy2627' },
     update: {},
     create: {
-      id: 'default-cycle-fy2526',
-      name: 'FY 2025-26',
-      startDate: new Date('2025-05-01'),
-      endDate: new Date('2026-04-30'),
+      id: 'default-cycle-fy2627',
+      name: 'FY 2026-27',
+      startDate: new Date('2026-05-01'),
+      endDate: new Date('2027-04-30'),
       phase: CyclePhase.GOAL_SETTING,
       isActive: true,
     },
