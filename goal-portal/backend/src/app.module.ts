@@ -8,11 +8,13 @@ import { ReportsModule } from './reports/reports.module';
 import { UsersModule } from './users/users.module';
 import { CyclesModule } from './cycles/cycles.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { EmailModule } from './email/email.module';
 import { AuditInterceptor } from './audit/audit.interceptor';
 
 @Module({
   imports: [
     PrismaModule,
+    EmailModule,
     AuthModule,
     UsersModule,
     GoalsModule,

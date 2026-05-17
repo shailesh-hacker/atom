@@ -2,10 +2,14 @@ import { Injectable, BadRequestException, ForbiddenException, NotFoundException 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateGoalDto, UpdateGoalDto, ManagerEditGoalDto, SharedGoalDto } from './dto/goal.dto';
 import { GoalStatus, Role } from '@prisma/client';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class GoalsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   async create(creatorId: string, creatorRole: Role, dto: CreateGoalDto) {
     if (creatorRole === Role.MANAGER) {
@@ -43,7 +47,7 @@ export class GoalsService {
       throw new BadRequestException('Minimum weightage per individual goal is 10%');
     }
 
-    return this.prisma.goal.create({
+    const newGoal = await this.prisma.goal.create({
       data: {
         thrustArea: dto.thrustArea,
         title: dto.title,
@@ -58,6 +62,41 @@ export class GoalsService {
         locked: false,
       },
     });
+
+    if (creatorRole === Role.EMPLOYEE) {
+      const employee = await this.prisma.user.findUnique({
+        where: { id: creatorId },
+        include: { manager: true }
+      });
+      if (employee?.manager?.email) {
+        await this.emailService.sendEmail(
+          employee.manager.email,
+          `New Goal Created - ${employee.name}`,
+          `
+          <div style="font-family: sans-serif; max-width: 600px; line-height: 1.6;">
+            <h2 style="color: #4f46e5;">New Goal Set Up</h2>
+            <p>Hi ${employee.manager.name},</p>
+            <p>Your direct report, <strong>${employee.name}</strong>, has set up a new goal: <strong>"${newGoal.title}"</strong>.</p>
+            <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+              <ul style="margin: 0; padding-left: 20px;">
+                <li><strong>Thrust Area:</strong> ${newGoal.thrustArea}</li>
+                <li><strong>Weightage:</strong> ${newGoal.weightage}%</li>
+                <li><strong>Target:</strong> ${newGoal.target} ${newGoal.uom}</li>
+                <li><strong>Description:</strong> ${newGoal.description || '—'}</li>
+              </ul>
+            </div>
+            <p>Please log in to the portal to review and manage their goals.</p>
+            <p style="margin-top: 24px;">
+              <a href="http://localhost:3000/goals" style="background-color: #4f46e5; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Goals</a>
+            </p>
+            <p style="margin-top: 32px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">This is an automated notification from GoalTrack. Please do not reply directly to this email.</p>
+          </div>
+          `
+        ).catch(err => console.error('Failed to send goal setup email notification', err));
+      }
+    }
+
+    return newGoal;
   }
 
   async findAll(userId: string, role: Role, managerId?: string) {
@@ -158,10 +197,45 @@ export class GoalsService {
       }
     }
 
-    return this.prisma.goal.update({
+    const updatedGoal = await this.prisma.goal.update({
       where: { id: goalId },
       data: dto,
     });
+
+    if (userRole === Role.EMPLOYEE) {
+      const employee = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: { manager: true }
+      });
+      if (employee?.manager?.email) {
+        await this.emailService.sendEmail(
+          employee.manager.email,
+          `Goal Updated - ${employee.name}`,
+          `
+          <div style="font-family: sans-serif; max-width: 600px; line-height: 1.6;">
+            <h2 style="color: #4f46e5;">Goal Updated By Employee</h2>
+            <p>Hi ${employee.manager.name},</p>
+            <p>Your direct report, <strong>${employee.name}</strong>, has updated their goal: <strong>"${updatedGoal.title}"</strong>.</p>
+            <div style="background-color: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+              <ul style="margin: 0; padding-left: 20px;">
+                <li><strong>Thrust Area:</strong> ${updatedGoal.thrustArea}</li>
+                <li><strong>Weightage:</strong> ${updatedGoal.weightage}%</li>
+                <li><strong>Target:</strong> ${updatedGoal.target} ${updatedGoal.uom}</li>
+                <li><strong>Description:</strong> ${updatedGoal.description || '—'}</li>
+              </ul>
+            </div>
+            <p>Please log in to the portal to review and manage their goals.</p>
+            <p style="margin-top: 24px;">
+              <a href="http://localhost:3000/goals" style="background-color: #4f46e5; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Goals</a>
+            </p>
+            <p style="margin-top: 32px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">This is an automated notification from GoalTrack. Please do not reply directly to this email.</p>
+          </div>
+          `
+        ).catch(err => console.error('Failed to send goal update email notification', err));
+      }
+    }
+
+    return updatedGoal;
   }
 
   async remove(goalId: string, userId: string, userRole: Role) {
@@ -232,13 +306,40 @@ export class GoalsService {
       throw new BadRequestException(`Goal "${invalidGoal.title}" has weightage ${invalidGoal.weightage}%, which is below the minimum required 10%`);
     }
 
-    return this.prisma.goal.updateMany({
+    const result = await this.prisma.goal.updateMany({
       where: { 
         employeeId: userId, 
         status: { in: [GoalStatus.DRAFT, GoalStatus.RETURNED] } 
       },
       data: { status: GoalStatus.PENDING },
     });
+
+    // Notify Manager
+    const employee = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { manager: true },
+    });
+
+    if (employee?.manager?.email) {
+      await this.emailService.sendEmail(
+        employee.manager.email,
+        `[Action Required] Goal Sheet Submitted for Approval - ${employee.name}`,
+        `
+        <div style="font-family: sans-serif; max-width: 600px; line-height: 1.6;">
+          <h2 style="color: #4f46e5;">Goal Sheet Submitted</h2>
+          <p>Hi ${employee.manager.name},</p>
+          <p>Your direct report, <strong>${employee.name}</strong>, has submitted their goal sheet for your review and approval in GoalTrack.</p>
+          <p>Please log in to the portal to approve or return their goals.</p>
+          <p style="margin-top: 24px;">
+            <a href="http://localhost:3000/approvals" style="background-color: #4f46e5; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Pending Approvals</a>
+          </p>
+          <p style="margin-top: 32px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">This is an automated notification from GoalTrack. Please do not reply directly to this email.</p>
+        </div>
+        `
+      ).catch(err => console.error('Failed to send goal submission notification email', err));
+    }
+
+    return result;
   }
 
   async submitWork(goalId: string, userId: string) {
@@ -249,10 +350,37 @@ export class GoalsService {
       throw new BadRequestException('Only approved or returned goals can be submitted as completed work');
     }
 
-    return this.prisma.goal.update({
+    const result = await this.prisma.goal.update({
       where: { id: goalId },
       data: { status: GoalStatus.PENDING },
     });
+
+    // Notify Manager
+    const employee = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { manager: true },
+    });
+
+    if (employee?.manager?.email) {
+      await this.emailService.sendEmail(
+        employee.manager.email,
+        `[Action Required] Goal Completed Work Submitted - ${employee.name}`,
+        `
+        <div style="font-family: sans-serif; max-width: 600px; line-height: 1.6;">
+          <h2 style="color: #4f46e5;">Completed Work Submitted</h2>
+          <p>Hi ${employee.manager.name},</p>
+          <p>Your direct report, <strong>${employee.name}</strong>, has submitted progress work for the goal <strong>"${goal.title}"</strong> for your approval in GoalTrack.</p>
+          <p>Please log in to the portal to approve or return their progress check-in.</p>
+          <p style="margin-top: 24px;">
+            <a href="http://localhost:3000/approvals" style="background-color: #4f46e5; color: white; padding: 10px 16px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Pending Approvals</a>
+          </p>
+          <p style="margin-top: 32px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;">This is an automated notification from GoalTrack. Please do not reply directly to this email.</p>
+        </div>
+        `
+      ).catch(err => console.error('Failed to send submit work notification email', err));
+    }
+
+    return result;
   }
 
   async approve(goalId: string, managerId: string) {
