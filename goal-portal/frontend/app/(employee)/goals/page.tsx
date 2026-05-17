@@ -126,7 +126,7 @@ export default function GoalsPage() {
       <div className="space-y-8">
         <div>
           <h1 className="text-2xl font-semibold text-text-primary">My Goal Sheet</h1>
-          <p className="text-sm text-text-secondary mt-1">FY 2025–26 · Goal Setting Phase</p>
+          <p className="text-sm text-text-secondary mt-1">FY 2026–27 · Goal Setting Phase</p>
         </div>
         <div className="flex items-center justify-center min-h-[40vh]">
           <Loader2 size={32} className="animate-spin text-brand" />

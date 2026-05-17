@@ -82,7 +82,7 @@ export default function CheckinsPage() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Quarterly Check-ins — {selectedQuarter} 2025</h1>
+          <h1 className="text-2xl font-semibold text-text-primary">Quarterly Check-ins — {selectedQuarter} FY 26–27</h1>
           <p className="text-sm text-text-secondary mt-1">Log your achievement data and track progress against targets.</p>
         </div>
 
