@@ -290,14 +290,6 @@ export default function TeamDashboardPage() {
 
         <div className="flex items-center gap-3">
           <button
-            onClick={() => setSlideOver({ open: true, mode: 'INDIVIDUAL', targetEmployeeId: undefined })}
-            className="bg-surface text-brand border border-brand/20 px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-brand-light transition-colors shadow-sm"
-          >
-            <Target size={18} />
-            Assign Normal Goal
-          </button>
-          
-          <button
             onClick={() => setSlideOver({ open: true, mode: 'SHARED' })}
             className="bg-brand text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-brand-dark transition-colors shadow-sm"
           >
