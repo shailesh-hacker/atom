@@ -1,54 +1,142 @@
-# Goal Management Portal — Frontend
+# GoalTrack Frontend
 
-A premium, enterprise-grade user interface built with Next.js 16 and Tailwind CSS. It provides a seamless experience for employees, managers, and admins to manage performance cycles and track organizational goals.
+This is the Next.js frontend for GoalTrack, the in-house goal setting and tracking portal. It provides role-based workspaces for employees, managers, and admins, and communicates with the NestJS backend through the Axios API client in `lib/api.ts`.
 
-## ✨ High-Fidelity Features
+## Tech Stack
 
-- **Dynamic Goal Dashboard**: Visual progress tracking with real-time weightage calculation.
-- **Contextual Slide-overs**: Elegant forms for goal assignment and editing that preserve user context.
-- **Role-Switching Views**: Distinct dashboards for Employees (Check-ins), Managers (Team Review), and Admins (Governance).
-- **Interactive Check-ins**: Quarterly logging interface with progress visualization and scoring feedback.
-- **Audit Log Viewer**: High-fidelity view of system changes with highlighted data diffs.
-- **Responsive Design**: Fully optimized for Desktop, Tablet, and Mobile devices.
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- TanStack Query
+- Axios
+- React Hook Form and Zod
+- Radix UI primitives
+- Lucide React icons
+- Recharts for analytics
+- Sonner for toast notifications
 
-## 🎨 Design System
+## Current App Structure
 
-The application uses a custom-tailored design system centered around **Indigo** and **Emerald** color palettes, focusing on:
-- **Clarity**: High-contrast typography and status-aware color coding.
-- **Feedback**: Instant toast notifications (Sonner) and visual validation states.
-- **Aesthetics**: Glassmorphic UI elements, subtle gradients, and smooth Lucide icon transitions.
+```text
+frontend/
++-- app/
+|   +-- page.tsx                 # Role-based redirect after auth
+|   +-- layout.tsx               # Root layout, providers, shell, navbar
+|   +-- globals.css              # Tailwind and global theme styles
+|   +-- (auth)/
+|   |   +-- login/               # Login screen
+|   +-- (employee)/
+|   |   +-- goals/               # Employee goal sheet
+|   |   +-- checkins/            # Employee quarterly check-ins
+|   +-- (manager)/
+|   |   +-- team/                # Team goals and shared goal assignment
+|   |   +-- approvals/           # Manager approval workflow
+|   |   +-- team-checkins/       # Planned vs actual review and comments
+|   |   +-- team/analysis/       # Team QoQ analysis
+|   +-- (admin)/
+|       +-- users/               # User and hierarchy management
+|       +-- cycles/              # Performance cycle management
+|       +-- analysis/            # Organization analytics
+|       +-- audit/               # Audit log viewer
+|       +-- reports/             # CSV export and completion dashboard
++-- components/
+|   +-- analytics/               # Charts and trend views
+|   +-- checkins/                # Check-in modal
+|   +-- goals/                   # Goal cards, forms, slide-over, weightage bar
+|   +-- manager/                 # Manager-specific table components
+|   +-- shared/                  # Shell, navbar, auth guard, badges, dialogs
+|   +-- ui/                      # Reusable UI primitives
++-- hooks/
+|   +-- useAuth.tsx              # Auth state and login/logout behavior
+|   +-- useGoals.ts              # Goal data query hook
++-- lib/
+    +-- api.ts                   # Axios client and JWT header injection
+    +-- queryClient.ts           # TanStack Query client
+    +-- utils.ts                 # Shared utility helpers
+```
 
-## 🛠️ Setup & Installation
+## Role-Based Experience
 
-### 1. Prerequisites
-- Node.js (v18+)
-- Backend running locally or reachable via URL
+| Role | Main Routes | What the UI Supports |
+| --- | --- | --- |
+| Employee | `/goals`, `/checkins` | Create goal sheets, track weightage, submit for approval, log quarterly achievements. |
+| Manager | `/team`, `/approvals`, `/team-checkins`, `/team/analysis`, `/reports` | Review team goals, edit target/weightage, approve or return goals, assign shared KPIs, add check-in comments, view team trends. |
+| Admin | `/users`, `/cycles`, `/analysis`, `/audit`, `/reports` | Manage users and reporting lines, control cycles, review audit logs, export reports, monitor completion. |
 
-### 2. Environment Configuration
-Create a `.env.local` file in the `frontend` directory:
+The root route (`/`) redirects users after login based on their role.
+
+## Environment Variables
+
+Create `frontend/.env.local`:
+
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:3001"
 ```
 
-### 3. Install Dependencies
+The backend listens on port `3001` by default. The frontend API client falls back to `http://localhost:3000`, so this variable should be set during local development.
+
+## Local Development
+
+Install dependencies:
+
 ```bash
 npm install
 ```
 
-### 4. Running the Application
-```bash
-# development
-npm run dev
+Start the development server:
 
-# production
-npm run build
-npm run start
+```bash
+npm run dev
 ```
 
-## 📂 Project Structure
+Open:
 
-- **`/app`**: Next.js App Router containing all page routes grouped by role (e.g., `(employee)`, `(manager)`, `(admin)`).
-- **`/components`**: Reusable UI atoms and complex feature-specific components.
-- **`/hooks`**: Custom React hooks for data fetching and state logic (using TanStack Query).
-- **`/lib`**: Utility functions, API client configuration, and Zod schemas.
-- **`/styles`**: Global CSS and Tailwind configuration.
+```text
+http://localhost:3000
+```
+
+Make sure the backend is running and reachable at `NEXT_PUBLIC_API_URL`.
+
+## Scripts
+
+```bash
+npm run dev      # Start the Next.js dev server
+npm run build    # Create a production build
+npm run start    # Serve the production build
+npm run lint     # Run ESLint
+```
+
+## Backend Integration
+
+The frontend stores the JWT token in `localStorage` and attaches it to API requests with:
+
+```text
+Authorization: Bearer <token>
+```
+
+Core API areas used by the UI:
+
+- `/auth/login`
+- `/goals/*`
+- `/checkins/*`
+- `/users/*`
+- `/cycles/*`
+- `/reports/*`
+- `/audit`
+
+## Feature Coverage
+
+- Goal sheet creation with UoM, target, weightage, inverse KPI support, and max-weightage feedback.
+- Employee submission flow that requires a complete 100% goal sheet.
+- Manager approval, return-for-rework, inline edit, and shared-goal assignment flows.
+- Quarterly check-in screens that respect the active cycle phase.
+- Planned vs actual views with backend-computed progress scores.
+- Admin governance screens for users, cycles, reports, analysis, and audit logs.
+
+## Notes
+
+- Route access is guarded in `components/shared/AuthGuard.tsx`.
+- Shared app chrome lives in `components/shared/AppShell.tsx` and `components/shared/Navbar.tsx`.
+- The design tokens and global styles are concentrated in `app/globals.css`.
+- Demo login accounts are seeded by the backend, not the frontend.
