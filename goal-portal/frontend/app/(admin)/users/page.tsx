@@ -6,6 +6,7 @@ import RoleBadge from '@/components/shared/RoleBadge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 interface User {
   id: string;
@@ -84,6 +85,7 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
 }
 
 export default function UsersPage() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [orgTree, setOrgTree] = useState<TreeNode[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
@@ -93,8 +95,7 @@ export default function UsersPage() {
 
   // Modal states
   const [addUserOpen, setAddUserOpen] = useState(false);
-  const [editRoleOpen, setEditRoleOpen] = useState(false);
-  const [changeManagerOpen, setChangeManagerOpen] = useState(false);
+  const [editUserOpen, setEditUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -105,10 +106,11 @@ export default function UsersPage() {
   const [newRole, setNewRole] = useState<'EMPLOYEE' | 'MANAGER' | 'ADMIN'>('EMPLOYEE');
   const [newManagerId, setNewManagerId] = useState('');
 
-  // Edit role form
+  // Edit user form
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState<'EMPLOYEE' | 'MANAGER' | 'ADMIN'>('EMPLOYEE');
-
-  // Change manager form
   const [editManagerId, setEditManagerId] = useState('');
 
   const fetchData = useCallback(async () => {
@@ -169,50 +171,50 @@ export default function UsersPage() {
   };
 
   // ── Edit Role ──
-  const openEditRole = (user: User) => {
+  // ── Edit User ──
+  const openEditUser = (user: User) => {
     setSelectedUser(user);
+    setEditName(user.name);
+    setEditEmail(user.email);
+    setEditPassword('');
     setEditRole(user.role);
-    setEditRoleOpen(true);
+    setEditManagerId(user.managerId || '');
+    setEditUserOpen(true);
   };
 
-  const handleEditRole = async (e: React.FormEvent) => {
+  const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser) return;
     setSubmitting(true);
     try {
-      await api.patch(`/users/${selectedUser.id}/role`, { role: editRole });
-      toast.success(`Role updated to ${editRole}.`);
-      setEditRoleOpen(false);
+      await api.patch(`/users/${selectedUser.id}`, {
+        name: editName,
+        email: editEmail,
+        password: editPassword || undefined,
+        role: editRole,
+        managerId: editManagerId || null,
+      });
+      toast.success(`User "${editName}" updated successfully.`);
+      setEditUserOpen(false);
       fetchData();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to update role');
+      toast.error(err?.response?.data?.message || 'Failed to update user');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ── Change Manager ──
-  const openChangeManager = (user: User) => {
-    setSelectedUser(user);
-    setEditManagerId(user.managerId || '');
-    setChangeManagerOpen(true);
-  };
-
-  const handleChangeManager = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedUser) return;
-    setSubmitting(true);
+  // ── Delete User ──
+  const handleDeleteUser = async (user: User) => {
+    if (!confirm(`Are you absolutely sure you want to delete ${user.name}? This will permanently delete all of their goals and updates.`)) {
+      return;
+    }
     try {
-      await api.patch(`/users/${selectedUser.id}/manager`, {
-        managerId: editManagerId || null,
-      });
-      toast.success('Manager updated successfully.');
-      setChangeManagerOpen(false);
+      await api.delete(`/users/${user.id}`);
+      toast.success(`User "${user.name}" deleted successfully.`);
       fetchData();
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to update manager');
-    } finally {
-      setSubmitting(false);
+      toast.error(err?.response?.data?.message || 'Failed to delete user');
     }
   };
 
@@ -328,9 +330,13 @@ export default function UsersPage() {
                   <td className="px-6 py-4 text-sm text-text-secondary">{user.managerName || '—'}</td>
                   <td className="px-6 py-4 text-sm text-text-primary font-medium">{user.directReports}</td>
                   <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEditRole(user)} className="text-xs font-medium text-brand hover:underline">Edit Role</button>
-                      <button onClick={() => openChangeManager(user)} className="text-xs font-medium text-text-secondary hover:text-brand hover:underline">Change Manager</button>
+                    <div className="flex gap-3">
+                      <button onClick={() => openEditUser(user)} className="text-xs font-semibold text-brand hover:underline">Edit</button>
+                      {currentUser?.id !== user.id ? (
+                        <button onClick={() => handleDeleteUser(user)} className="text-xs font-semibold text-rose-500 hover:text-rose-700 hover:underline">Delete</button>
+                      ) : (
+                        <span className="text-xs font-semibold text-text-secondary cursor-not-allowed opacity-50" title="You cannot delete your own account">Delete</span>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -425,64 +431,57 @@ export default function UsersPage() {
         </form>
       </Modal>
 
-      {/* ── Edit Role Modal ── */}
-      <Modal open={editRoleOpen} onClose={() => setEditRoleOpen(false)} title="Edit User Role">
-        <form onSubmit={handleEditRole} className="space-y-4">
-          {selectedUser && (
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-              <div className="h-8 w-8 rounded-full bg-brand-light border border-border flex items-center justify-center">
-                <span className="text-brand font-semibold text-xs">{selectedUser.name.split(' ').map(n => n[0]).join('')}</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-primary">{selectedUser.name}</p>
-                <p className="text-xs text-text-secondary">{selectedUser.email}</p>
-              </div>
-            </div>
-          )}
+      {/* ── Edit User Modal ── */}
+      <Modal open={editUserOpen} onClose={() => setEditUserOpen(false)} title="Edit User Details">
+        <form onSubmit={handleEditUser} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-text-primary">New Role</label>
+            <label className="text-sm font-medium text-text-primary">Full Name</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+              className="w-full border border-border rounded-md px-3 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text-primary">Email</label>
+            <input
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              required
+              className="w-full border border-border rounded-md px-3 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text-primary">New Password</label>
+            <input
+              type="password"
+              value={editPassword}
+              onChange={(e) => setEditPassword(e.target.value)}
+              placeholder="Leave blank to keep current password"
+              className="w-full border border-border rounded-md px-3 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text-primary">Role</label>
             <select
               value={editRole}
               onChange={(e) => setEditRole(e.target.value as any)}
-              className="w-full border border-border rounded-md px-3 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+              disabled={currentUser?.id === selectedUser?.id}
+              className="w-full border border-border rounded-md px-3 py-2.5 text-sm bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand disabled:opacity-60 disabled:bg-background"
             >
               <option value="EMPLOYEE">Employee</option>
               <option value="MANAGER">Manager</option>
               <option value="ADMIN">Admin</option>
             </select>
+            {currentUser?.id === selectedUser?.id && (
+              <p className="text-xs text-text-secondary mt-1">You cannot change your own Admin role.</p>
+            )}
           </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setEditRoleOpen(false)} className="px-4 py-2 text-sm font-medium text-text-secondary hover:bg-background rounded-lg transition-colors">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 text-sm font-semibold text-white bg-brand hover:bg-brand-dark rounded-lg transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2"
-            >
-              {submitting && <Loader2 size={14} className="animate-spin" />}
-              Update Role
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* ── Change Manager Modal ── */}
-      <Modal open={changeManagerOpen} onClose={() => setChangeManagerOpen(false)} title="Change Manager">
-        <form onSubmit={handleChangeManager} className="space-y-4">
-          {selectedUser && (
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg">
-              <div className="h-8 w-8 rounded-full bg-brand-light border border-border flex items-center justify-center">
-                <span className="text-brand font-semibold text-xs">{selectedUser.name.split(' ').map(n => n[0]).join('')}</span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-primary">{selectedUser.name}</p>
-                <p className="text-xs text-text-secondary">Currently reports to: {selectedUser.managerName || 'None'}</p>
-              </div>
-            </div>
-          )}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-text-primary">New Manager</label>
+            <label className="text-sm font-medium text-text-primary">Reports To</label>
             <select
               value={editManagerId}
               onChange={(e) => setEditManagerId(e.target.value)}
@@ -497,7 +496,7 @@ export default function UsersPage() {
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setChangeManagerOpen(false)} className="px-4 py-2 text-sm font-medium text-text-secondary hover:bg-background rounded-lg transition-colors">
+            <button type="button" onClick={() => setEditUserOpen(false)} className="px-4 py-2 text-sm font-medium text-text-secondary hover:bg-background rounded-lg transition-colors">
               Cancel
             </button>
             <button
@@ -506,7 +505,7 @@ export default function UsersPage() {
               className="px-4 py-2 text-sm font-semibold text-white bg-brand hover:bg-brand-dark rounded-lg transition-colors shadow-sm disabled:opacity-60 flex items-center gap-2"
             >
               {submitting && <Loader2 size={14} className="animate-spin" />}
-              Update Manager
+              Save Changes
             </button>
           </div>
         </form>

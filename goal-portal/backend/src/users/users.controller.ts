@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -46,5 +46,27 @@ export class UsersController {
   @Roles(Role.ADMIN)
   async updateManager(@Param('id') id: string, @Body() body: { managerId: string | null }) {
     return this.usersService.updateManager(id, body.managerId);
+  }
+
+  @Patch(':id')
+  @Roles(Role.ADMIN)
+  async update(
+    @Param('id') id: string,
+    @Body() body: { name?: string; email?: string; password?: string; role?: Role; managerId?: string | null },
+    @Request() req: any,
+  ) {
+    if (req.user.id === id && body.role !== undefined && body.role !== Role.ADMIN) {
+      throw new BadRequestException('Admins cannot change their own role to a non-admin role');
+    }
+    return this.usersService.updateUser(id, body);
+  }
+
+  @Delete(':id')
+  @Roles(Role.ADMIN)
+  async remove(@Param('id') id: string, @Request() req: any) {
+    if (req.user.id === id) {
+      throw new BadRequestException('Admins cannot delete their own account');
+    }
+    return this.usersService.remove(id);
   }
 }

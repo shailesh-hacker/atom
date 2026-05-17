@@ -138,4 +138,88 @@ export class UsersService {
       orderBy: { name: 'asc' },
     });
   }
+
+  async updateUser(userId: string, data: { name?: string; email?: string; password?: string; role?: Role; managerId?: string | null }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    
+    if (data.email !== undefined && data.email !== user.email) {
+      const existing = await this.prisma.user.findUnique({ where: { email: data.email } });
+      if (existing) throw new BadRequestException('A user with this email already exists');
+      updateData.email = data.email;
+    }
+
+    if (data.password !== undefined && data.password.trim() !== '') {
+      updateData.password = await bcrypt.hash(data.password, 10);
+    }
+
+    if (data.role !== undefined) updateData.role = data.role;
+    
+    if (data.managerId !== undefined) {
+      if (data.managerId === userId) {
+        throw new BadRequestException('A user cannot be their own manager');
+      }
+      if (data.managerId) {
+        const manager = await this.prisma.user.findUnique({ where: { id: data.managerId } });
+        if (!manager) throw new NotFoundException('Manager not found');
+      }
+      updateData.managerId = data.managerId;
+    }
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        managerId: true,
+      },
+    });
+  }
+
+  async remove(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Nullify managerId for direct reports
+      await tx.user.updateMany({
+        where: { managerId: userId },
+        data: { managerId: null },
+      });
+
+      // 2. Fetch all goals of the user or where primary owner
+      const userGoals = await tx.goal.findMany({
+        where: { OR: [{ employeeId: userId }, { primaryOwnerId: userId }] }
+      });
+      const goalIds = userGoals.map(g => g.id);
+
+      if (goalIds.length > 0) {
+        // 3. Delete all GoalUpdates of these goals
+        await tx.goalUpdate.deleteMany({
+          where: { goalId: { in: goalIds } },
+        });
+
+        // 4. Delete all Goals of the user
+        await tx.goal.deleteMany({
+          where: { id: { in: goalIds } },
+        });
+      }
+
+      // 5. Delete all AuditLogs of the user
+      await tx.auditLog.deleteMany({
+        where: { userId },
+      });
+
+      // 6. Delete the User record itself
+      return tx.user.delete({
+        where: { id: userId },
+      });
+    });
+  }
 }
