@@ -46,6 +46,9 @@ export default function ManagerCheckinsPage() {
   const [editingComment, setEditingComment] = useState<{ updateId: string; value: string } | null>(null);
   const [savingComment, setSavingComment] = useState(false);
 
+  const [activeCycle, setActiveCycle] = useState<any>(null);
+  const [cycleLoading, setCycleLoading] = useState(true);
+
   const fetchData = useCallback(async () => {
     try {
       const { data } = await api.get('/goals/team');
@@ -57,7 +60,31 @@ export default function ManagerCheckinsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    api.get('/cycles/active')
+      .then(({ data }) => {
+        setActiveCycle(data);
+        if (data) {
+          const phaseToQuarter: Record<string, string> = {
+            Q1_CHECKIN: 'Q1', Q2_CHECKIN: 'Q2', Q3_CHECKIN: 'Q3', Q4_CHECKIN: 'Q4',
+          };
+          const activeQuarter = phaseToQuarter[data.phase];
+          if (activeQuarter) {
+            setSelectedQuarter(activeQuarter);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch active cycle', err);
+      })
+      .finally(() => {
+        setCycleLoading(false);
+      });
+  }, []);
 
   const handleSaveComment = async () => {
     if (!editingComment) return;
@@ -74,7 +101,7 @@ export default function ManagerCheckinsPage() {
     }
   };
 
-  if (loading) {
+  if (loading || cycleLoading) {
     return (
       <div className="space-y-6">
         <div>
@@ -104,21 +131,35 @@ export default function ManagerCheckinsPage() {
           </p>
         </div>
         {/* Quarter selector */}
-        <div className="flex gap-1 bg-background border border-border rounded-lg p-1 self-start">
-          {quarters.map((q) => (
-            <button
-              key={q}
-              onClick={() => setSelectedQuarter(q)}
-              className={cn(
-                'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
-                selectedQuarter === q
-                  ? 'bg-brand text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              )}
-            >
-              {q}
-            </button>
-          ))}
+        <div className="flex bg-background border border-border rounded-lg p-1 self-start shadow-sm">
+          {quarters.map((q) => {
+            const phaseToQuarter: Record<string, string> = {
+              Q1_CHECKIN: 'Q1', Q2_CHECKIN: 'Q2', Q3_CHECKIN: 'Q3', Q4_CHECKIN: 'Q4',
+            };
+            const activeQuarter = activeCycle ? phaseToQuarter[activeCycle.phase] : 'Q1';
+            const quarterOrder = ['Q1', 'Q2', 'Q3', 'Q4'];
+            const activeIdx = quarterOrder.indexOf(activeQuarter || 'Q1');
+            const qIdx = quarterOrder.indexOf(q);
+            const isDisabled = qIdx > activeIdx; // Disabled if future quarter
+
+            return (
+              <button
+                key={q}
+                onClick={() => !isDisabled && setSelectedQuarter(q)}
+                disabled={isDisabled}
+                className={cn(
+                  'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200',
+                  selectedQuarter === q
+                    ? 'bg-surface text-brand shadow-sm font-bold'
+                    : 'text-text-secondary hover:text-text-primary',
+                  isDisabled && 'opacity-40 cursor-not-allowed hover:text-text-secondary hover:bg-transparent'
+                )}
+                title={isDisabled ? `Quarter ${q} is locked (future quarter)` : `View Quarter ${q}`}
+              >
+                {q}
+              </button>
+            );
+          })}
         </div>
       </div>
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Search, Lock, Unlock, Plus, Loader2, Calendar, CheckCircle } from 'lucide-react';
+import { Search, Lock, Unlock, Plus, Loader2, Calendar, CheckCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
@@ -22,6 +22,7 @@ export default function CyclesPage() {
   const queryClient = useQueryClient();
   const [unlockSearch, setUnlockSearch] = useState('');
   const [unlockReason, setUnlockReason] = useState('');
+  const [showWarning, setShowWarning] = useState(true);
 
   const { data: cycles = [], isLoading } = useQuery({
     queryKey: ['cycles'],
@@ -112,18 +113,27 @@ export default function CyclesPage() {
       </div>
 
       {/* Auto-Approved Goals Warning Banner */}
-      {autoApprovedGoals.length > 0 && (
+      {showWarning && autoApprovedGoals.length > 0 && (
         <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-6 shadow-sm space-y-4">
-          <div className="flex items-start gap-3">
-            <span className="p-2 bg-amber-100 rounded-lg text-amber-800">
-              <Calendar size={20} className="stroke-[2.5]" />
-            </span>
-            <div>
-              <h2 className="text-base font-bold text-amber-900">System Notice: Auto-Approved Goals</h2>
-              <p className="text-sm text-amber-700 mt-1">
-                The following goals were automatically approved by the system because they were not approved by their manager in time when the check-in phase started.
-              </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <span className="p-2 bg-amber-100 rounded-lg text-amber-800 shrink-0">
+                <Calendar size={20} className="stroke-[2.5]" />
+              </span>
+              <div>
+                <h2 className="text-base font-bold text-amber-900">System Notice: Auto-Approved Goals</h2>
+                <p className="text-sm text-amber-700 mt-1">
+                  The following goals were automatically approved by the system because they were not approved by their manager in time when the check-in phase started.
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => setShowWarning(false)}
+              className="text-amber-700 hover:bg-amber-100/50 p-1 rounded-lg transition-colors shrink-0"
+              title="Dismiss warning"
+            >
+              <X size={18} className="stroke-[2.5]" />
+            </button>
           </div>
           
           <div className="overflow-x-auto border border-amber-200/50 rounded-lg bg-surface">
