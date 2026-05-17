@@ -143,6 +143,11 @@ export default function UsersPage() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    if (newPassword.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      setSubmitting(false);
+      return;
+    }
     try {
       await api.post('/users', {
         name: newName,
@@ -186,6 +191,11 @@ export default function UsersPage() {
     e.preventDefault();
     if (!selectedUser) return;
     setSubmitting(true);
+    if (editPassword && editPassword.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      setSubmitting(false);
+      return;
+    }
     try {
       await api.patch(`/users/${selectedUser.id}`, {
         name: editName,
