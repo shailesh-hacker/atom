@@ -82,4 +82,9 @@ export class SharedGoalDto {
   @IsArray()
   @IsString({ each: true })
   employeeIds: string[];
+
+  @IsOptional()
+  @IsString()
+  primaryOwnerId?: string;
 }
+

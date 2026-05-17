@@ -70,6 +70,48 @@ export default function TeamDashboardPage() {
   const [returnReason, setReturnReason] = useState('');
   const [returning, setReturning] = useState(false);
 
+  // Inline editing states
+  const [inlineEditingGoalId, setInlineEditingGoalId] = useState<string | null>(null);
+  const [inlineTarget, setInlineTarget] = useState<any>('');
+  const [inlineWeightage, setInlineWeightage] = useState<number>(10);
+
+  const handleStartInlineEdit = (goal: Goal) => {
+    setInlineEditingGoalId(goal.id);
+    let displayTarget: any = goal.target;
+    if (goal.uom === 'TIMELINE' && typeof displayTarget === 'number' && displayTarget > 10000000) {
+      const s = String(displayTarget);
+      displayTarget = `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+    }
+    setInlineTarget(displayTarget);
+    setInlineWeightage(goal.weightage);
+  };
+
+  const handleSaveInline = async (goalId: string, uom: string) => {
+    let finalTarget = inlineTarget;
+    if (uom === 'TIMELINE' && typeof finalTarget === 'string') {
+      finalTarget = Number(finalTarget.replace(/-/g, ''));
+    } else {
+      finalTarget = Number(finalTarget);
+    }
+
+    if (inlineWeightage < 10) {
+      toast.error('Minimum weightage per individual goal is 10%');
+      return;
+    }
+
+    try {
+      await api.patch(`/goals/${goalId}/manager-edit`, {
+        target: finalTarget,
+        weightage: inlineWeightage,
+      });
+      toast.success('Goal updated successfully');
+      setInlineEditingGoalId(null);
+      fetchTeamGoals();
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to update goal');
+    }
+  };
+
   const fetchTeamGoals = useCallback(async () => {
     try {
       const { data } = await api.get('/goals/team');
@@ -400,95 +442,133 @@ export default function TeamDashboardPage() {
                           <div className="space-y-3">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Goal Sheet</h4>
-                              <button
-                                onClick={() => setSlideOver({ open: true, mode: 'INDIVIDUAL', targetEmployeeId: employee.id })}
-                                className="text-xs font-semibold text-brand flex items-center gap-1 hover:underline"
-                              >
-                                <Plus size={14} />
-                                Assign Goal
-                              </button>
                             </div>
                             
-                            {employee.goals.map((goal) => (
-                              <div key={goal.id} className="flex items-center justify-between bg-surface rounded-lg border border-border px-5 py-3">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs font-medium text-brand bg-brand-light px-2 py-0.5 rounded-full">{goal.thrustArea}</span>
-                                    <StatusChip status={goal.status} />
-                                  </div>
-                                  <p className="text-sm font-medium text-text-primary">{goal.title}</p>
-                                  <p className="text-xs text-text-secondary mt-1">
-                                    Target: {goal.uom === 'TIMELINE' ? (
-                                      (() => {
-                                        const s = String(goal.target);
-                                        return s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : goal.target;
-                                      })()
-                                    ) : goal.target} · Weightage: {goal.weightage}%
-                                  </p>
+                            {employee.goals.map((goal) => {
+                              const isEditingInline = inlineEditingGoalId === goal.id;
+                              return (
+                                <div key={goal.id} className="bg-surface rounded-lg border border-border px-5 py-3 transition-all">
+                                  {isEditingInline ? (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+                                      <div className="flex-1 min-w-[200px]">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                          <span className="text-xs font-semibold text-brand bg-brand-light px-2.5 py-0.5 rounded-full">{goal.thrustArea}</span>
+                                          <StatusChip status={goal.status} />
+                                        </div>
+                                        <p className="text-sm font-semibold text-text-primary leading-snug">{goal.title}</p>
+                                        <p className="text-[10px] text-text-secondary mt-1">UoM: {goal.uom}</p>
+                                      </div>
+                                      <div className="flex items-end gap-3 flex-wrap sm:flex-nowrap">
+                                        <div className="w-32">
+                                          <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1" htmlFor={`inline-target-${goal.id}`}>Target</label>
+                                          <input
+                                            id={`inline-target-${goal.id}`}
+                                            type={goal.uom === 'TIMELINE' ? 'date' : 'number'}
+                                            value={inlineTarget}
+                                            onChange={(e) => setInlineTarget(e.target.value)}
+                                            className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand shadow-sm transition-all"
+                                          />
+                                        </div>
+                                        <div className="w-24">
+                                          <label className="block text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-1" htmlFor={`inline-weightage-${goal.id}`}>Weightage (%)</label>
+                                          <input
+                                            id={`inline-weightage-${goal.id}`}
+                                            type="number"
+                                            value={inlineWeightage}
+                                            onChange={(e) => setInlineWeightage(Number(e.target.value))}
+                                            className="w-full border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary bg-surface focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand shadow-sm transition-all"
+                                            min={10}
+                                            max={100}
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-1.5 self-end shrink-0 mb-0.5">
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleSaveInline(goal.id, goal.uom); }}
+                                            className="p-2 rounded-lg bg-success/10 hover:bg-success/20 text-success transition-all shadow-sm"
+                                            title="Save changes"
+                                          >
+                                            <Check size={14} className="stroke-[3px]" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setInlineEditingGoalId(null); }}
+                                            className="p-2 rounded-lg bg-background hover:bg-border text-text-secondary transition-all border border-border shadow-sm"
+                                            title="Cancel edit"
+                                          >
+                                            <X size={14} className="stroke-[2.5px]" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center justify-between w-full">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className="text-xs font-medium text-brand bg-brand-light px-2 py-0.5 rounded-full">{goal.thrustArea}</span>
+                                          <StatusChip status={goal.status} />
+                                        </div>
+                                        <p className="text-sm font-medium text-text-primary">{goal.title}</p>
+                                        <p className="text-xs text-text-secondary mt-1">
+                                          Target: {goal.uom === 'TIMELINE' ? (
+                                            (() => {
+                                              const s = String(goal.target);
+                                              return s.length === 8 ? `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}` : goal.target;
+                                            })()
+                                          ) : goal.target} · Weightage: {goal.weightage}%
+                                        </p>
+                                      </div>
+                                      <div className="flex items-center gap-2 ml-4">
+                                        {goal.status !== 'COMPLETED' && !goal.locked && (
+                                          <>
+                                            <button
+                                              onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                handleStartInlineEdit(goal);
+                                              }}
+                                              className="p-1.5 rounded-lg hover:bg-brand-light text-brand transition-colors"
+                                              title="Edit Target / Weightage inline"
+                                            >
+                                              <Pencil size={14} />
+                                            </button>
+                                            <button
+                                              onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                if (confirm('Are you sure you want to delete this goal?')) {
+                                                  deleteMutation.mutate(goal.id);
+                                                }
+                                              }}
+                                              className="p-1.5 rounded-lg hover:bg-danger-light text-danger transition-colors"
+                                              title="Delete Goal"
+                                            >
+                                              <Trash2 size={14} />
+                                            </button>
+                                          </>
+                                        )}
+                                        {goal.status === 'PENDING' && (
+                                          <>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); handleApprove(goal.id); }}
+                                              disabled={actionLoading === goal.id}
+                                              className="p-2 rounded-lg hover:bg-success-light text-success transition-colors disabled:opacity-50"
+                                              aria-label="Approve goal"
+                                            >
+                                              {actionLoading === goal.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                                            </button>
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); handleReturn(goal.id); }}
+                                              disabled={actionLoading === goal.id}
+                                              className="p-2 rounded-lg hover:bg-danger-light text-danger transition-colors disabled:opacity-50"
+                                              aria-label="Return goal"
+                                            >
+                                              <X size={16} />
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-2 ml-4">
-                                    {goal.status !== 'COMPLETED' && (
-                                      <>
-                                        <button
-                                          onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            setSlideOver({ 
-                                              open: true, 
-                                              mode: 'INDIVIDUAL', 
-                                              targetEmployeeId: employee.id,
-                                              initialData: {
-                                                thrustArea: goal.thrustArea,
-                                                title: goal.title,
-                                                description: goal.description || '',
-                                                uom: goal.uom,
-                                                target: goal.target,
-                                                weightage: goal.weightage,
-                                              },
-                                              goalId: goal.id
-                                            }); 
-                                          }}
-                                          className="p-1.5 rounded-lg hover:bg-brand-light text-brand transition-colors"
-                                          title="Edit Goal"
-                                        >
-                                          <Pencil size={14} />
-                                        </button>
-                                        <button
-                                          onClick={(e) => { 
-                                            e.stopPropagation(); 
-                                            if (confirm('Are you sure you want to delete this goal?')) {
-                                              deleteMutation.mutate(goal.id);
-                                            }
-                                          }}
-                                          className="p-1.5 rounded-lg hover:bg-danger-light text-danger transition-colors"
-                                          title="Delete Goal"
-                                        >
-                                          <Trash2 size={14} />
-                                        </button>
-                                      </>
-                                    )}
-                                    {goal.status === 'PENDING' && (
-                                      <>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleApprove(goal.id); }}
-                                          disabled={actionLoading === goal.id}
-                                          className="p-2 rounded-lg hover:bg-success-light text-success transition-colors disabled:opacity-50"
-                                          aria-label="Approve goal"
-                                        >
-                                          {actionLoading === goal.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                                        </button>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); handleReturn(goal.id); }}
-                                          disabled={actionLoading === goal.id}
-                                          className="p-2 rounded-lg hover:bg-danger-light text-danger transition-colors disabled:opacity-50"
-                                          aria-label="Return goal"
-                                        >
-                                          <X size={16} />
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                              </div>
-                            ))}
+                              );
+                            })}
 
                             {/* Bulk actions */}
                             {employee.goals.some((g) => g.status === 'PENDING') && (

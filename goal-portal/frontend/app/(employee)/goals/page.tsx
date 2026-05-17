@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Send, AlertCircle, Loader2, Lock } from 'lucide-react';
 import GoalCard from '@/components/goals/GoalCard';
 import WeightageBar from '@/components/goals/WeightageBar';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useGoals } from '@/hooks/useGoals';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 const getCurrentQuarter = () => {
   const month = new Date().getMonth();
@@ -23,12 +24,29 @@ const getCurrentQuarter = () => {
 };
 
 export default function GoalsPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: goals = [], isLoading, error } = useGoals();
 
   const [slideOver, setSlideOver] = useState<{ open: boolean; goal: any | null }>({ open: false, goal: null });
   const [checkinModal, setCheckinModal] = useState<{ open: boolean; goalId: string | null }>({ open: false, goalId: null });
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; goalId: string | null }>({ open: false, goalId: null });
+
+  const [activeCycle, setActiveCycle] = useState<any>(null);
+  const [cycleLoading, setCycleLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/cycles/active')
+      .then(({ data }) => {
+        setActiveCycle(data);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch active cycle', err);
+      })
+      .finally(() => {
+        setCycleLoading(false);
+      });
+  }, []);
 
   const currentQuarter = getCurrentQuarter();
 
@@ -85,6 +103,17 @@ export default function GoalsPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to submit work'),
   });
 
+  // ── Delete Goal Mutation ──
+  const deleteGoalMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/goals/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      toast.success('Goal deleted successfully!');
+      setDeleteDialog({ open: false, goalId: null });
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to delete goal'),
+  });
+
   const totalWeightage = goals.reduce((sum: number, g: any) => sum + g.weightage, 0);
   const isWeightageValid = totalWeightage === 100;
   const canAddGoal = goals.length < 8;
@@ -92,7 +121,7 @@ export default function GoalsPage() {
 
   const activeCheckinGoal = goals.find((g: any) => g.id === checkinModal.goalId);
 
-  if (isLoading) {
+  if (isLoading || cycleLoading) {
     return (
       <div className="space-y-8">
         <div>
@@ -106,22 +135,33 @@ export default function GoalsPage() {
     );
   }
 
+  const hasReturnedGoals = goals.some((g: any) => g.status === 'RETURNED');
+  const isPendingApproval = goals.some((g: any) => g.status === 'PENDING');
+  const allApproved = goals.length > 0 && goals.every((g: any) => g.status === 'APPROVED' || g.status === 'COMPLETED');
+  const isGoalSettingActive = activeCycle?.phase === 'GOAL_SETTING';
+  const isEditableSheet = isGoalSettingActive;
+
   return (
     <div className="space-y-8">
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-text-primary">Assigned Objectives</h1>
-          <p className="text-sm text-text-secondary mt-1">Review and execute goals assigned by your manager.</p>
-          <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold text-brand bg-brand-light/50 px-2 py-0.5 rounded uppercase tracking-wider border border-brand/10">
-            <Lock size={10} />
-            Managed by Organization
+          <h1 className="text-2xl font-semibold text-text-primary">My Goal Sheet</h1>
+          <p className="text-sm text-text-secondary mt-1">Define, track, and submit your objectives for the current cycle.</p>
+          <div className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold text-brand bg-brand-light/50 px-2 py-1 rounded uppercase tracking-wider border border-brand/10">
+            {allApproved 
+              ? 'Approved & Locked' 
+              : isPendingApproval 
+                ? 'Pending Approval' 
+                : activeCycle 
+                  ? `Phase: ${activeCycle.phase.replace('_', ' ')}` 
+                  : 'Goal Setting Phase'}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-4">
           {/* Weightage Meter (Circular) */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 bg-surface border border-border p-2.5 rounded-xl shadow-sm">
             <div className={cn(
               'h-12 w-12 rounded-full border-4 flex items-center justify-center text-sm font-bold',
               isWeightageValid
@@ -133,13 +173,41 @@ export default function GoalsPage() {
               {totalWeightage}
             </div>
             <div>
-              <p className="text-xs font-medium text-text-secondary">/ 100%</p>
+              <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Total Weightage</p>
+              <p className="text-xs text-text-secondary mt-0.5">/ 100% required</p>
             </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
+            {canAddGoal && isEditableSheet && (
+              <button
+                onClick={() => setSlideOver({ open: true, goal: null })}
+                className="bg-brand text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 hover:bg-brand-dark transition-colors shadow-sm"
+              >
+                <Plus size={18} />
+                Create Goal
+              </button>
+            )}
+
+            {(hasDraftGoals || hasReturnedGoals) && (
+              <button
+                onClick={() => submitMutation.mutate()}
+                disabled={!isWeightageValid || submitMutation.isPending}
+                className={cn(
+                  "px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-colors shadow-sm border",
+                  isWeightageValid 
+                    ? "bg-success text-white border-success hover:bg-emerald-600 cursor-pointer" 
+                    : "bg-surface text-text-secondary border-border cursor-not-allowed"
+                )}
+              >
+                {submitMutation.isPending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                Submit Goal Sheet
+              </button>
+            )}
           </div>
         </div>
       </div>
-
-
 
       {/* Return reason banner */}
       {goals.some((g: any) => g.status === 'RETURNED' && g.returnReason) && (
@@ -157,8 +225,8 @@ export default function GoalsPage() {
       {/* Goal List */}
       {goals.length === 0 ? (
         <EmptyState
-          title="No goals assigned"
-          description="Your manager hasn't assigned any goals to you for this cycle yet."
+          title="Your goal sheet is empty"
+          description="Click 'Create Goal' to start adding objectives for this performance cycle."
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -168,6 +236,7 @@ export default function GoalsPage() {
               goal={goal}
               onSubmitWork={(id) => submitWorkMutation.mutate(id)}
               onEdit={(goal) => setSlideOver({ open: true, goal })}
+              onDelete={(id) => setDeleteDialog({ open: true, goalId: id })}
             />
           ))}
         </div>
@@ -188,6 +257,25 @@ export default function GoalsPage() {
           }
         }}
         initialData={slideOver.goal}
+        currentTotalWeightage={totalWeightage - (slideOver.goal?.weightage || 0)}
+        lockDefinition={true}
+        targetEmployeeId={user?.id}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, goalId: null })}
+        onConfirm={() => {
+          if (deleteDialog.goalId) {
+            deleteGoalMutation.mutate(deleteDialog.goalId);
+          }
+        }}
+        title="Delete Goal"
+        description="Are you sure you want to delete this goal? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteGoalMutation.isPending}
       />
 
       {/* Check-in Modal */}

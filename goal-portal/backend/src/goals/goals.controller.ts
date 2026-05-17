@@ -17,6 +17,12 @@ export class GoalsController {
     return this.goalsService.findAll(req.user.id, req.user.role, managerId);
   }
 
+  @Get('auto-approved')
+  @Roles(Role.ADMIN)
+  async getAutoApproved() {
+    return this.goalsService.findAutoApproved();
+  }
+
   @Post()
   @Roles(Role.EMPLOYEE, Role.MANAGER, Role.ADMIN)
   async create(@Request() req, @Body() dto: CreateGoalDto) {

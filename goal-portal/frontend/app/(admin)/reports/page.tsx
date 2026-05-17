@@ -197,29 +197,127 @@ export default function ReportsPage() {
           )}
 
           {selectedReport === 'completion' && (
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-text-primary">Completion Dashboard</h2>
-              <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
-                {completion ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div>
-                        <p className="text-sm text-text-secondary">Employees Pending</p>
-                        <p className="text-3xl font-bold text-text-primary">{completion.submitted} / {completion.total}</p>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-text-primary">Completion Dashboard</h2>
+                {completion && (
+                  <span className="inline-flex items-center rounded-full bg-brand-light px-3 py-1 text-xs font-semibold text-brand uppercase tracking-wide">
+                    Active Quarter: {completion.activeQuarter || 'Q1'}
+                  </span>
+                )}
+              </div>
+
+              {/* Completion Stats Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-surface rounded-xl border border-border p-5 shadow-sm space-y-2">
+                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Organizational Goal Completion Rate</p>
+                  {completion ? (
+                    <div className="space-y-2">
+                      <p className="text-3xl font-bold text-brand">{Math.round(completion.rate || 0)}%</p>
+                      <div className="w-full bg-border rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-2 rounded-full bg-brand transition-all duration-300"
+                          style={{ width: `${completion.rate || 0}%` }}
+                        />
                       </div>
-                      <div className="flex-1 max-w-xs">
-                        <div className="w-full bg-border rounded-full h-3 overflow-hidden">
-                          <div
-                            className="h-3 rounded-full bg-brand transition-all duration-300"
-                            style={{ width: `${completion.rate || 0}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-text-secondary mt-1">{Math.round(completion.rate || 0)}% completion rate</p>
-                      </div>
+                      <p className="text-xs text-text-secondary">based on logged check-ins for the active quarter</p>
                     </div>
+                  ) : (
+                    <p className="text-sm text-text-secondary">Loading rate...</p>
+                  )}
+                </div>
+
+                <div className="bg-surface rounded-xl border border-border p-5 shadow-sm space-y-2">
+                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Employees 100% Completed</p>
+                  {completion ? (
+                    <div className="space-y-2">
+                      <p className="text-3xl font-bold text-text-primary">{completion.submitted} / {completion.total}</p>
+                      <div className="w-full bg-border rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-2 rounded-full bg-success transition-all duration-300"
+                          style={{ width: `${completion.total > 0 ? (completion.submitted / completion.total) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-text-secondary">employees who have logged check-ins for all goals</p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-text-secondary">Loading submitted count...</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Employee Progress Table */}
+              <div className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-border bg-background">
+                  <h3 className="text-sm font-semibold text-text-primary">Employee Check-in Progress Details</h3>
+                  <p className="text-xs text-text-secondary mt-0.5">Real-time completion details of approved goals for {completion?.activeQuarter || 'Q1'}.</p>
+                </div>
+                
+                {completion?.employeeDetails && completion.employeeDetails.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-border bg-background/50 font-semibold text-text-secondary">
+                          <th className="px-6 py-3">Employee</th>
+                          <th className="px-6 py-3 text-center">Approved Goals</th>
+                          <th className="px-6 py-3 text-center">Completed Check-ins</th>
+                          <th className="px-6 py-3">Completion Progress</th>
+                          <th className="px-6 py-3 text-right">Completion Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border text-text-primary">
+                        {completion.employeeDetails.map((emp: any) => {
+                          const isDone = emp.totalGoals > 0 && emp.completedGoals === emp.totalGoals;
+                          const hasNone = emp.totalGoals === 0;
+                          
+                          return (
+                            <tr key={emp.id} className="hover:bg-background/50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="font-semibold text-text-primary">{emp.name}</div>
+                                <div className="text-xs text-text-secondary">{emp.email}</div>
+                              </td>
+                              <td className="px-6 py-4 text-center font-medium">{emp.totalGoals}</td>
+                              <td className="px-6 py-4 text-center font-medium">{emp.completedGoals}</td>
+                              <td className="px-6 py-4">
+                                {hasNone ? (
+                                  <span className="text-xs text-text-secondary italic">No approved goals assigned</span>
+                                ) : (
+                                  <div className="space-y-1 max-w-[160px]">
+                                    <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className={cn(
+                                          'h-1.5 rounded-full transition-all duration-300',
+                                          isDone ? 'bg-success' : emp.completedGoals > 0 ? 'bg-brand' : 'bg-danger'
+                                        )}
+                                        style={{ width: `${emp.rate}%` }}
+                                      />
+                                    </div>
+                                    <span className={cn(
+                                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                                      isDone 
+                                        ? 'bg-success-light text-emerald-700' 
+                                        : emp.completedGoals > 0 
+                                          ? 'bg-brand-light text-brand' 
+                                          : 'bg-danger/10 text-danger'
+                                    )}>
+                                      {isDone ? 'Complete' : emp.completedGoals > 0 ? 'In Progress' : 'No Check-in'}
+                                    </span>
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 text-right font-bold text-text-primary">
+                                {hasNone ? '—' : `${Math.round(emp.rate)}%`}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-text-secondary">Loading completion data...</p>
+                  <div className="p-8 text-center text-text-secondary">
+                    No employee completion details found.
+                  </div>
                 )}
               </div>
             </div>

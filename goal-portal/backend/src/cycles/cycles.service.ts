@@ -45,9 +45,43 @@ export class CyclesService {
     });
   }
 
-  async updatePhase(cycleId: string, phase: CyclePhase) {
+  async updatePhase(cycleId: string, phase: CyclePhase, adminId?: string) {
     const cycle = await this.prisma.cycle.findUnique({ where: { id: cycleId } });
     if (!cycle) throw new NotFoundException('Cycle not found');
+
+    if (phase === CyclePhase.Q1_CHECKIN) {
+      const unapprovedGoals = await this.prisma.goal.findMany({
+        where: {
+          cycleId,
+          status: { notIn: ['APPROVED', 'COMPLETED'] },
+        },
+      });
+
+      if (unapprovedGoals.length > 0) {
+        await Promise.all(unapprovedGoals.map(async (goal) => {
+          await this.prisma.goal.update({
+            where: { id: goal.id },
+            data: {
+              status: 'APPROVED',
+              returnReason: 'AUTO_APPROVED_Q1',
+            },
+          });
+
+          if (adminId) {
+            await this.prisma.auditLog.create({
+              data: {
+                userId: adminId,
+                entityType: 'Goal',
+                entityId: goal.id,
+                action: 'AUTO_APPROVE',
+                oldValue: { status: goal.status } as any,
+                newValue: { status: 'APPROVED', reason: 'Auto-approved on Q1 Check-in start' } as any,
+              },
+            });
+          }
+        }));
+      }
+    }
 
     return this.prisma.cycle.update({
       where: { id: cycleId },

@@ -71,28 +71,77 @@ export class ReportsController {
       targetManagerId = req.user.id; // Managers can only see their own team
     }
 
+    const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
+    let activeQuarter = 'Q1';
+    if (activeCycle) {
+      const phaseToQuarter: Record<string, string> = {
+        Q1_CHECKIN: 'Q1',
+        Q2_CHECKIN: 'Q2',
+        Q3_CHECKIN: 'Q3',
+        Q4_CHECKIN: 'Q4',
+      };
+      activeQuarter = phaseToQuarter[activeCycle.phase] || 'Q1';
+    }
+
     const whereClause: any = { role: Role.EMPLOYEE };
     if (targetManagerId) {
       whereClause.managerId = targetManagerId;
     }
 
-    const totalEmployees = await this.prisma.user.count({ where: whereClause });
-
-    // Build where clause for goals
-    const goalWhereClause: any = { status: { in: ['PENDING', 'APPROVED', 'COMPLETED'] } };
-    if (targetManagerId) {
-      goalWhereClause.employee = { managerId: targetManagerId };
-    }
-
-    const submittedEmployees = await this.prisma.goal.groupBy({
-      by: ['employeeId'],
-      where: goalWhereClause,
+    const employees = await this.prisma.user.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
     });
 
+    const employeeDetails: any[] = [];
+    let totalGoalsSum = 0;
+    let completedGoalsSum = 0;
+
+    for (const emp of employees) {
+      const goals = await this.prisma.goal.findMany({
+        where: {
+          employeeId: emp.id,
+          cycleId: activeCycle?.id || undefined,
+          status: { in: ['APPROVED', 'COMPLETED'] },
+        },
+        include: {
+          updates: {
+            where: { quarter: activeQuarter },
+          },
+        },
+      });
+
+      const totalGoals = goals.length;
+      const completedGoals = goals.filter(g => g.updates.length > 0).length;
+      const rate = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+
+      totalGoalsSum += totalGoals;
+      completedGoalsSum += completedGoals;
+
+      employeeDetails.push({
+        id: emp.id,
+        name: emp.name,
+        email: emp.email,
+        totalGoals,
+        completedGoals,
+        rate,
+      });
+    }
+
+    const overallRate = totalGoalsSum > 0 ? (completedGoalsSum / totalGoalsSum) * 100 : 0;
+    const completedEmployees = employeeDetails.filter(e => e.totalGoals > 0 && e.rate === 100).length;
+    const activeEmployeesCount = employeeDetails.filter(e => e.totalGoals > 0).length;
+
     return {
-      total: totalEmployees,
-      submitted: submittedEmployees.length,
-      rate: totalEmployees > 0 ? (submittedEmployees.length / totalEmployees) * 100 : 0,
+      total: activeEmployeesCount || employees.length,
+      submitted: completedEmployees,
+      rate: overallRate,
+      activeQuarter,
+      employeeDetails,
     };
   }
 }

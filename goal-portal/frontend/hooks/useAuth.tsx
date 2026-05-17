@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { queryClient } from '@/lib/queryClient';
 
 interface User {
   id: string;
@@ -41,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (credentials: { email: string; password: string }) => {
+    queryClient.clear();
     const { data } = await api.post('/auth/login', credentials);
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const logout = useCallback(() => {
+    queryClient.clear();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);

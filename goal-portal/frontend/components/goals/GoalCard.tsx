@@ -17,7 +17,7 @@ interface GoalCardProps {
     locked: boolean;
     isShared: boolean;
   };
-  onEdit?: (id: string) => void;
+  onEdit?: (goal: any) => void;
   onDelete?: (id: string) => void;
   onSubmitWork?: (id: string) => void;
 }
@@ -99,11 +99,11 @@ export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalC
         </div>
         
         <div className="flex justify-end gap-2">
-          {goal.status === 'DRAFT' && !goal.locked ? (
+          {(goal.status === 'DRAFT' || goal.status === 'RETURNED' || goal.status === 'PENDING') && !goal.locked ? (
             <>
               {onEdit && (
                 <button
-                  onClick={() => onEdit(goal.id)}
+                  onClick={() => onEdit(goal)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-brand hover:bg-brand-light rounded-lg transition-colors"
                   aria-label="Edit goal"
                 >
@@ -122,17 +122,11 @@ export default function GoalCard({ goal, onEdit, onDelete, onSubmitWork }: GoalC
                 </button>
               )}
             </>
-          ) : (goal.status === 'APPROVED' || goal.status === 'RETURNED') ? (
-            <>
-              {/* onCheckin button removed as per user request to submit from goals page directly */}
-              <button
-                onClick={() => onSubmitWork?.(goal.id)}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium text-white bg-brand hover:bg-brand-dark shadow-sm rounded-lg transition-colors"
-              >
-                <CheckCircle size={14} />
-                Submit Work
-              </button>
-            </>
+          ) : goal.status === 'APPROVED' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs text-success font-medium bg-success-light/30 px-2 py-1 rounded">
+              <CheckCircle size={14} />
+              Approved
+            </span>
           ) : goal.status === 'PENDING' ? (
             <span className="inline-flex items-center gap-1.5 text-xs text-text-secondary font-medium">
               Pending Manager Review

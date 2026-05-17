@@ -31,6 +31,14 @@ export default function CyclesPage() {
     },
   });
 
+  const { data: autoApprovedGoals = [] } = useQuery({
+    queryKey: ['autoApprovedGoals'],
+    queryFn: async () => {
+      const { data } = await api.get('/goals/auto-approved');
+      return data;
+    },
+  });
+
   const activeCycle = cycles.find((c: any) => c.isActive);
 
   const advancePhaseMutation = useMutation({
@@ -38,6 +46,7 @@ export default function CyclesPage() {
       api.patch(`/cycles/${cycleId}/phase`, { phase }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cycles'] });
+      queryClient.invalidateQueries({ queryKey: ['autoApprovedGoals'] });
       toast.success('Phase updated!');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to update phase'),
@@ -101,6 +110,52 @@ export default function CyclesPage() {
           Reset System Data
         </button>
       </div>
+
+      {/* Auto-Approved Goals Warning Banner */}
+      {autoApprovedGoals.length > 0 && (
+        <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl p-6 shadow-sm space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="p-2 bg-amber-100 rounded-lg text-amber-800">
+              <Calendar size={20} className="stroke-[2.5]" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-amber-900">System Notice: Auto-Approved Goals</h2>
+              <p className="text-sm text-amber-700 mt-1">
+                The following goals were automatically approved by the system because they were not approved by their manager in time when the check-in phase started.
+              </p>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto border border-amber-200/50 rounded-lg bg-surface">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-surface-container-low border-b border-border font-bold text-text-secondary">
+                  <th className="p-3">Employee</th>
+                  <th className="p-3">Thrust Area</th>
+                  <th className="p-3">Goal Title</th>
+                  <th className="p-3">Target</th>
+                  <th className="p-3">Weightage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border text-text-primary">
+                {autoApprovedGoals.map((goal: any) => (
+                  <tr key={goal.id} className="hover:bg-surface-container-lowest transition-colors">
+                    <td className="p-3 font-medium">{goal.employee?.name || 'N/A'}</td>
+                    <td className="p-3">
+                      <span className="bg-brand-light/50 text-brand px-2 py-0.5 rounded font-bold uppercase text-[10px]">
+                        {goal.thrustArea}
+                      </span>
+                    </td>
+                    <td className="p-3 font-semibold">{goal.title}</td>
+                    <td className="p-3 font-medium">{goal.target}</td>
+                    <td className="p-3 font-bold">{goal.weightage}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Active Cycle Card */}
       {activeCycle ? (

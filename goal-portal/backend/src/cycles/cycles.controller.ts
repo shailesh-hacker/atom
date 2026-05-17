@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { CyclesService } from './cycles.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -35,8 +35,8 @@ export class CyclesController {
 
   @Patch(':id/phase')
   @Roles(Role.ADMIN)
-  async updatePhase(@Param('id') id: string, @Body() body: { phase: CyclePhase }) {
-    return this.cyclesService.updatePhase(id, body.phase);
+  async updatePhase(@Req() req, @Param('id') id: string, @Body() body: { phase: CyclePhase }) {
+    return this.cyclesService.updatePhase(id, body.phase, req.user.id);
   }
 
   @Post('reset')

@@ -8,17 +8,17 @@ export class GoalsService {
   constructor(private prisma: PrismaService) {}
 
   async create(creatorId: string, creatorRole: Role, dto: CreateGoalDto) {
-    const targetEmployeeId = (creatorRole === Role.MANAGER || creatorRole === Role.ADMIN) 
+    if (creatorRole === Role.MANAGER) {
+      throw new ForbiddenException('Managers are only allowed to create shared goals');
+    }
+
+    const targetEmployeeId = creatorRole === Role.ADMIN
       ? dto.employeeId || creatorId 
       : creatorId;
 
-    // If manager is assigning, verify target is a direct report
-    if (creatorRole === Role.MANAGER && targetEmployeeId !== creatorId) {
-      const employee = await this.prisma.user.findUnique({ where: { id: targetEmployeeId } });
-      if (!employee || employee.managerId !== creatorId) {
-        throw new ForbiddenException('You can only assign goals to your direct reports');
-      }
-    }
+    const status = creatorRole === Role.ADMIN
+      ? GoalStatus.APPROVED
+      : GoalStatus.PENDING;
 
     const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
     if (!activeCycle) throw new BadRequestException('No active cycle found');
@@ -30,7 +30,7 @@ export class GoalsService {
       where: { employeeId: targetEmployeeId, cycleId: activeCycle.id } 
     });
     if (goalCount >= 8) {
-      throw new BadRequestException('Maximum 8 goals allowed per cycle');
+      throw new BadRequestException('Maximum 8 goals allowed per employee');
     }
 
     if (dto.weightage < 10) {
@@ -48,21 +48,41 @@ export class GoalsService {
         isInverse: dto.isInverse ?? false,
         employeeId: targetEmployeeId,
         cycleId: activeCycle.id,
-        status: (creatorRole === Role.MANAGER || creatorRole === Role.ADMIN) ? GoalStatus.APPROVED : GoalStatus.DRAFT,
-        locked: (creatorRole === Role.MANAGER || creatorRole === Role.ADMIN) ? true : false,
+        status: status,
+        locked: false,
       },
     });
   }
 
   async findAll(userId: string, role: Role, managerId?: string) {
-    if (role === Role.ADMIN && managerId) {
+    if (role === Role.ADMIN) {
+      if (managerId) {
+        return this.prisma.goal.findMany({
+          where: { employee: { managerId } },
+          include: { employee: true, updates: true },
+        });
+      } else {
+        // Global organization report for Admin: fetch ALL goals
+        return this.prisma.goal.findMany({
+          include: { employee: true, updates: true },
+        });
+      }
+    }
+
+    if (role === Role.MANAGER) {
+      // Fetch goals of employees reporting to this manager, plus manager's own goals if any
       return this.prisma.goal.findMany({
-        where: { employee: { managerId } },
+        where: {
+          OR: [
+            { employee: { managerId: userId } },
+            { employeeId: userId }
+          ]
+        },
         include: { employee: true, updates: true },
       });
     }
 
-    // Default for everyone (Employee, Manager, Admin without filter): fetch own goals
+    // Employee: fetch own goals
     return this.prisma.goal.findMany({
       where: { employeeId: userId },
       include: { employee: true, updates: true },
@@ -75,14 +95,6 @@ export class GoalsService {
       include: { goals: { include: { updates: true } } },
       orderBy: { name: 'asc' },
     });
-    
-    // Map it to a structure that's easy to digest on the frontend
-    // Since the frontend previously grouped by employee, we can return the array of users
-    // with their goals directly, OR we can map it to match the frontend's expected Goal format
-    // Let's just return the users, but we should make sure the frontend understands it.
-    // Wait, the frontend currently expects `Goal[]` and groups it. 
-    // If I change it here, I MUST update the frontend.
-    // Let's return the employees with their goals included.
     return users;
   }
 
@@ -99,19 +111,31 @@ export class GoalsService {
       if (goal.employee.managerId !== userId) {
         throw new ForbiddenException('You can only edit goals for your direct reports');
       }
+      if (goal.locked) {
+        throw new ForbiddenException('Goals are locked on approval. No further edits without Admin intervention.');
+      }
     } else {
-      throw new ForbiddenException('Employees cannot edit goal definitions');
+      if (goal.employeeId !== userId) {
+        throw new ForbiddenException('You can only edit your own goals');
+      }
+      if (goal.status === GoalStatus.APPROVED || goal.status === GoalStatus.COMPLETED) {
+        throw new ForbiddenException('Employees cannot change approved goals');
+      }
+      if (goal.locked) {
+        throw new ForbiddenException('Goals are locked on approval. No further edits without Admin intervention.');
+      }
+      // Employees are not allowed to edit goal definitions once created (only weightage can be updated)
+      if (dto.thrustArea !== undefined || dto.title !== undefined || dto.description !== undefined || dto.uom !== undefined || dto.target !== undefined || dto.isInverse !== undefined) {
+        throw new BadRequestException('Goal definition parameters (title, target, etc.) are read-only after creation. You can only adjust weightages.');
+      }
     }
 
     if (goal.status === GoalStatus.COMPLETED) {
       throw new ForbiddenException('Cannot edit a completed goal');
     }
 
-
-
-    if (goal.isShared) {
-      delete dto.title;
-      delete dto.target;
+    if (dto.weightage !== undefined && dto.weightage < 10) {
+      throw new BadRequestException('Minimum weightage per individual goal is 10%');
     }
 
     return this.prisma.goal.update({
@@ -134,11 +158,25 @@ export class GoalsService {
         throw new ForbiddenException('You can only delete goals for your direct reports');
       }
     } else {
-      throw new ForbiddenException('Employees cannot delete goals');
+      if (goal.employeeId !== userId) {
+        throw new ForbiddenException('You can only delete your own goals');
+      }
+      if (goal.status === GoalStatus.APPROVED || goal.status === GoalStatus.COMPLETED) {
+        throw new ForbiddenException('Employees cannot delete approved goals');
+      }
+      if (goal.status !== GoalStatus.DRAFT && goal.status !== GoalStatus.RETURNED && goal.status !== GoalStatus.PENDING) {
+        throw new ForbiddenException('You can only delete goals in Draft, Returned, or Pending status');
+      }
+      if (goal.locked) {
+        throw new ForbiddenException('Locked goals cannot be deleted');
+      }
+      if (goal.isShared) {
+        throw new ForbiddenException('Recipients cannot delete shared goals');
+      }
     }
 
-    if (goal.status !== GoalStatus.DRAFT && goal.status !== GoalStatus.RETURNED && goal.status !== GoalStatus.APPROVED && userRole !== Role.ADMIN) {
-      throw new ForbiddenException('Only draft, returned, or approved goals can be deleted');
+    if (goal.status !== GoalStatus.DRAFT && goal.status !== GoalStatus.RETURNED && goal.status !== GoalStatus.PENDING && goal.status !== GoalStatus.APPROVED && userRole !== Role.ADMIN) {
+      throw new ForbiddenException('Only draft, returned, pending, or approved goals can be deleted');
     }
 
     // Delete dependent check-in records first
@@ -155,14 +193,30 @@ export class GoalsService {
     const goals = await this.prisma.goal.findMany({ 
       where: { employeeId: userId, cycleId: activeCycle?.id } 
     });
-    const totalWeightage = goals.reduce((sum, g) => sum + g.weightage, 0);
 
+    if (goals.length === 0) {
+      throw new BadRequestException('Cannot submit an empty goal sheet');
+    }
+
+    if (goals.length > 8) {
+      throw new BadRequestException('Maximum 8 goals allowed per employee');
+    }
+
+    const totalWeightage = goals.reduce((sum, g) => sum + g.weightage, 0);
     if (totalWeightage !== 100) {
       throw new BadRequestException(`Total weightage must be exactly 100%. Current total: ${totalWeightage}%`);
     }
 
+    const invalidGoal = goals.find((g) => g.weightage < 10);
+    if (invalidGoal) {
+      throw new BadRequestException(`Goal "${invalidGoal.title}" has weightage ${invalidGoal.weightage}%, which is below the minimum required 10%`);
+    }
+
     return this.prisma.goal.updateMany({
-      where: { employeeId: userId, status: GoalStatus.DRAFT },
+      where: { 
+        employeeId: userId, 
+        status: { in: [GoalStatus.DRAFT, GoalStatus.RETURNED] } 
+      },
       data: { status: GoalStatus.PENDING },
     });
   }
@@ -190,8 +244,6 @@ export class GoalsService {
     if (!goal) throw new NotFoundException('Goal not found');
     if (goal.employee.managerId !== managerId) throw new ForbiddenException('Not your report');
 
-    // If goal is already locked (previously approved definition) and is PENDING,
-    // this is a work completion approval.
     const nextStatus = (goal.status === GoalStatus.PENDING && goal.locked)
       ? GoalStatus.COMPLETED
       : GoalStatus.APPROVED;
@@ -202,7 +254,6 @@ export class GoalsService {
     });
   }
 
-  // ── Return for Rework with reason ──
   async returnForRework(goalId: string, managerId: string, reason?: string) {
     const goal = await this.prisma.goal.findUnique({
       where: { id: goalId },
@@ -216,13 +267,12 @@ export class GoalsService {
       where: { id: goalId },
       data: {
         status: GoalStatus.RETURNED,
-        locked: true,
+        locked: false, // Unlock for employee to edit again
         returnReason: reason || null,
       },
     });
   }
 
-  // ── Manager Inline-Edit (target + weightage before approval) ──
   async managerEdit(goalId: string, managerId: string, managerRole: Role, dto: ManagerEditGoalDto) {
     const goal = await this.prisma.goal.findUnique({
       where: { id: goalId },
@@ -235,8 +285,16 @@ export class GoalsService {
       throw new ForbiddenException('You can only edit goals for your direct reports');
     }
 
+    if (goal.locked && managerRole !== Role.ADMIN) {
+      throw new ForbiddenException('Goals are locked on approval. No further edits without Admin intervention.');
+    }
+
     if (goal.status === GoalStatus.COMPLETED) {
       throw new ForbiddenException('Cannot edit a completed goal');
+    }
+
+    if (dto.weightage !== undefined && dto.weightage < 10) {
+      throw new BadRequestException('Minimum weightage per individual goal is 10%');
     }
 
     const updateData: any = {};
@@ -249,13 +307,13 @@ export class GoalsService {
     });
   }
 
-  // ── Shared Goals Push ──
-  async createShared(dto: SharedGoalDto, primaryOwnerId: string) {
-    const { employeeIds, ...goalData } = dto;
+  async createShared(dto: SharedGoalDto, creatorId: string) {
+    const { employeeIds, primaryOwnerId: dtoPrimaryOwnerId, ...goalData } = dto;
     const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
     if (!activeCycle) throw new BadRequestException('No active cycle found');
 
     const sharedGroupId = `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const primaryOwnerId = dtoPrimaryOwnerId || employeeIds[0];
 
     const creations = employeeIds.map((empId) =>
       this.prisma.goal.create({
@@ -267,8 +325,8 @@ export class GoalsService {
           isShared: true,
           sharedGroupId,
           primaryOwnerId,
-          status: GoalStatus.APPROVED,
-          locked: true,
+          status: GoalStatus.APPROVED, // Direct APPROVED status so employee can instantly check-in and log progress
+          locked: false,
         },
       }),
     );
@@ -280,6 +338,13 @@ export class GoalsService {
     return this.prisma.goal.update({
       where: { id: goalId },
       data: { locked: false },
+    });
+  }
+
+  async findAutoApproved() {
+    return this.prisma.goal.findMany({
+      where: { returnReason: 'AUTO_APPROVED_Q1' },
+      include: { employee: true },
     });
   }
 }

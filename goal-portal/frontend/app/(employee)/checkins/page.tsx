@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Loader2, Target, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2, Target, TrendingUp, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useGoals } from '@/hooks/useGoals';
 import CheckinModal from '@/components/checkins/CheckinModal';
@@ -25,6 +25,31 @@ export default function CheckinsPage() {
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter());
   const [activeGoal, setActiveGoal] = useState<any>(null);
 
+  const [activeCycle, setActiveCycle] = useState<any>(null);
+  const [cycleLoading, setCycleLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/cycles/active')
+      .then(({ data }) => {
+        setActiveCycle(data);
+        if (data) {
+          const phaseToQuarter: Record<string, string> = {
+            Q1_CHECKIN: 'Q1', Q2_CHECKIN: 'Q2', Q3_CHECKIN: 'Q3', Q4_CHECKIN: 'Q4',
+          };
+          const activeQuarter = phaseToQuarter[data.phase];
+          if (activeQuarter) {
+            setSelectedQuarter(activeQuarter);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch active cycle', err);
+      })
+      .finally(() => {
+        setCycleLoading(false);
+      });
+  }, []);
+
   const checkinMutation = useMutation({
     mutationFn: (data: any) => api.post('/checkins', data),
     onSuccess: () => {
@@ -38,7 +63,7 @@ export default function CheckinsPage() {
   // Only show approved or completed goals for check-ins
   const approvedGoals = goals.filter((g: any) => ['APPROVED', 'COMPLETED'].includes(g.status));
 
-  if (isLoading) {
+  if (isLoading || cycleLoading) {
     return (
       <div className="space-y-8">
         <div>
@@ -62,21 +87,32 @@ export default function CheckinsPage() {
         </div>
 
         {/* Quarter selector */}
-        <div className="flex bg-background border border-border rounded-lg p-1">
-          {quarters.map((q) => (
-            <button
-              key={q}
-              onClick={() => setSelectedQuarter(q)}
-              className={cn(
-                'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
-                selectedQuarter === q
-                  ? 'bg-surface text-brand shadow-sm'
-                  : 'text-text-secondary hover:text-text-primary'
-              )}
-            >
-              {q}
-            </button>
-          ))}
+        <div className="flex bg-background border border-border rounded-lg p-1 shadow-sm">
+          {quarters.map((q) => {
+            const phaseToQuarter: Record<string, string> = {
+              Q1_CHECKIN: 'Q1', Q2_CHECKIN: 'Q2', Q3_CHECKIN: 'Q3', Q4_CHECKIN: 'Q4',
+            };
+            const activeQuarter = activeCycle ? phaseToQuarter[activeCycle.phase] : null;
+            const isDisabled = activeQuarter ? q !== activeQuarter : true;
+
+            return (
+              <button
+                key={q}
+                onClick={() => !isDisabled && setSelectedQuarter(q)}
+                disabled={isDisabled}
+                className={cn(
+                  'px-4 py-1.5 text-sm font-semibold rounded-md transition-all duration-200',
+                  selectedQuarter === q
+                    ? 'bg-surface text-brand shadow-sm'
+                    : 'text-text-secondary hover:text-text-primary',
+                  isDisabled && 'opacity-40 cursor-not-allowed hover:text-text-secondary hover:bg-transparent'
+                )}
+                title={isDisabled ? `Quarter ${q} is locked during the current phase` : `Select Quarter ${q}`}
+              >
+                {q}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -117,7 +153,32 @@ export default function CheckinsPage() {
       </div>
 
       {/* Goals list for check-in */}
-      {approvedGoals.length === 0 ? (
+      {(() => {
+        const phaseToQuarter: Record<string, string> = {
+          Q1_CHECKIN: 'Q1', Q2_CHECKIN: 'Q2', Q3_CHECKIN: 'Q3', Q4_CHECKIN: 'Q4',
+        };
+        const activeQuarter = activeCycle ? phaseToQuarter[activeCycle.phase] : null;
+        const isCheckinLocked = !activeQuarter;
+
+        return (
+          <>
+            {isCheckinLocked && (
+              <div className="flex items-start gap-3 bg-danger/10 border border-danger/20 text-danger rounded-xl p-4 text-sm mb-6 shadow-sm">
+                <AlertCircle className="mt-0.5 shrink-0" size={18} />
+                <div>
+                  <strong className="block font-semibold">Check-ins are currently locked</strong>
+                  {activeCycle?.phase === 'GOAL_SETTING' ? (
+                    <span>The cycle is currently in the Goal Setting phase. Check-ins will open once your manager starts the execution phase.</span>
+                  ) : activeCycle?.phase === 'CLOSED' ? (
+                    <span>This cycle has been closed. No further progress logging is permitted.</span>
+                  ) : (
+                    <span>There is currently no active goal cycle or check-in phase. Please check with your Administrator.</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {approvedGoals.length === 0 ? (
         <div className="bg-surface rounded-xl border border-dashed border-border p-12 text-center shadow-sm">
           <Target size={48} className="mx-auto text-text-secondary/40 mb-4" />
           <h3 className="text-lg font-semibold text-text-primary mb-1">No approved goals</h3>
@@ -197,18 +258,23 @@ export default function CheckinsPage() {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => setActiveGoal(goal)}
-                    className="bg-brand/10 text-brand px-4 py-2 rounded-lg font-semibold text-sm hover:bg-brand/20 transition-colors shrink-0 ml-4"
-                  >
-                    {latestUpdate ? 'Update' : 'Log Progress'}
-                  </button>
+                  {!isCheckinLocked && (
+                    <button
+                      onClick={() => setActiveGoal(goal)}
+                      className="bg-brand/10 text-brand px-4 py-2 rounded-lg font-semibold text-sm hover:bg-brand/20 transition-colors shrink-0 ml-4 shadow-sm"
+                    >
+                      {latestUpdate ? 'Update' : 'Log Progress'}
+                    </button>
+                  )}
                 </div>
               </div>
             );
           })}
         </div>
       )}
+          </>
+        );
+      })()}
 
       {/* Check-in Modal */}
       {activeGoal && (

@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { X, Hash, Calendar, Percent, ToggleRight, CheckCircle } from 'lucide-react';
+import { X, Hash, Calendar, Percent, ToggleRight, CheckCircle, Share2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
 
@@ -16,6 +16,7 @@ const goalSchema = z.object({
   weightage: z.number().min(10, 'Min weightage is 10%').max(100, 'Max weightage is 100%'),
   isInverse: z.boolean().optional(),
   employeeIds: z.array(z.string()).optional(),
+  primaryOwnerId: z.string().optional(),
 });
 
 type GoalFormValues = z.infer<typeof goalSchema>;
@@ -24,11 +25,12 @@ interface CreateGoalSlideOverProps {
   open: boolean;
   onClose: () => void;
   onSave: (data: any) => void;
-  initialData?: Partial<GoalFormValues> | null;
+  initialData?: (Partial<GoalFormValues> & { isShared?: boolean }) | null;
   currentTotalWeightage?: number;
   mode?: 'INDIVIDUAL' | 'SHARED';
   availableEmployees?: { id: string; name: string }[];
   targetEmployeeId?: string;
+  lockDefinition?: boolean;
 }
 
 const thrustAreaOptions = [
@@ -57,6 +59,7 @@ export default function CreateGoalSlideOver({
   mode = 'INDIVIDUAL',
   availableEmployees = [],
   targetEmployeeId,
+  lockDefinition = false,
 }: CreateGoalSlideOverProps) {
   const {
     register,
@@ -72,6 +75,7 @@ export default function CreateGoalSlideOver({
       target: 0,
       weightage: 10,
       employeeIds: targetEmployeeId ? [targetEmployeeId] : [],
+      primaryOwnerId: '',
     },
   });
 
@@ -95,6 +99,7 @@ export default function CreateGoalSlideOver({
         weightage: initialData?.weightage || 10,
         isInverse: initialData?.isInverse ?? false,
         employeeIds: targetEmployeeId ? [targetEmployeeId] : [],
+        primaryOwnerId: initialData?.primaryOwnerId || '',
       });
     }
   }, [open, initialData, reset, targetEmployeeId]);
@@ -116,18 +121,30 @@ export default function CreateGoalSlideOver({
   const uomValue = watch('uom');
   const weightageValue = watch('weightage') || 0;
   const selectedEmployeeIds = watch('employeeIds') || [];
+  const primaryOwnerIdValue = watch('primaryOwnerId') || '';
   const remainingWeightage = 100 - currentTotalWeightage;
 
   if (!open) return null;
 
   const isEditMode = !!initialData;
+  const isSharedGoal = !!initialData?.isShared;
+  const isReadOnlyDefinition = isSharedGoal || (isEditMode && lockDefinition);
 
   const toggleEmployee = (id: string) => {
     const current = selectedEmployeeIds;
+    let next: string[];
     if (current.includes(id)) {
-      setValue('employeeIds', current.filter((eid) => eid !== id));
+      next = current.filter((eid) => eid !== id);
     } else {
-      setValue('employeeIds', [...current, id]);
+      next = [...current, id];
+    }
+    setValue('employeeIds', next);
+
+    // If current primary owner is removed or none selected, default to first selected
+    if (next.length > 0 && !next.includes(primaryOwnerIdValue)) {
+      setValue('primaryOwnerId', next[0]);
+    } else if (next.length === 0) {
+      setValue('primaryOwnerId', '');
     }
   };
 
@@ -146,7 +163,7 @@ export default function CreateGoalSlideOver({
         <div className="px-6 py-5 border-b border-border flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-2xl font-semibold text-text-primary">
-              {isEditMode ? 'Edit Goal' : mode === 'SHARED' ? 'Assign Shared Goal' : 'Assign Goal'}
+              {isEditMode ? (isSharedGoal ? 'Edit Shared Goal' : 'Edit Goal') : mode === 'SHARED' ? 'Assign Shared Goal' : 'Create Goal'}
             </h2>
             <p className="text-sm text-text-secondary mt-1">
               Define objective parameters for assignment.
@@ -166,9 +183,19 @@ export default function CreateGoalSlideOver({
           className="flex-1 overflow-y-auto custom-scrollbar flex flex-col"
         >
           <div className="p-6 space-y-6 flex-1">
+            {/* Shared Goal premium Notice Banner */}
+            {isReadOnlyDefinition && (
+              <div className="flex items-start gap-2.5 text-xs text-brand bg-brand-light/40 p-4 rounded-xl border border-brand/10 shadow-sm leading-relaxed text-brand">
+                <Lock size={15} className="mt-0.5 shrink-0 text-brand" />
+                <div>
+                  <strong>Goal Definition Locked:</strong> Core parameters are read-only. You are authorized to adjust the <strong>weightage</strong> only to align your goal sheet.
+                </div>
+              </div>
+            )}
+
             {/* Employee Selection (Only for Shared) */}
             {mode === 'SHARED' && (
-              <div className="space-y-3">
+              <div className="space-y-3 bg-surface-container-low border border-border p-4 rounded-xl">
                 <label className="block text-sm font-semibold text-text-primary">
                   Assign to Employees <span className="text-danger">*</span>
                 </label>
@@ -186,6 +213,32 @@ export default function CreateGoalSlideOver({
                   ))}
                 </div>
                 {selectedEmployeeIds.length === 0 && <p className="text-xs text-danger">Select at least one employee</p>}
+
+                {/* Primary Owner Designation */}
+                {selectedEmployeeIds.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider" htmlFor="primaryOwnerSelect">
+                      Designate Primary Owner <span className="text-danger">*</span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        id="primaryOwnerSelect"
+                        value={primaryOwnerIdValue}
+                        onChange={(e) => setValue('primaryOwnerId', e.target.value)}
+                        className="w-full appearance-none bg-surface border border-border rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand shadow-sm transition-shadow"
+                        required
+                      >
+                        <option value="" disabled>Select primary owner...</option>
+                        {availableEmployees
+                          .filter((emp) => selectedEmployeeIds.includes(emp.id))
+                          .map((emp) => (
+                            <option key={emp.id} value={emp.id}>{emp.name}</option>
+                          ))}
+                      </select>
+                    </div>
+                    <p className="text-[10px] text-text-secondary">This user's achievement updates will automatically synchronize across all recipients' goal sheets.</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -222,7 +275,8 @@ export default function CreateGoalSlideOver({
                 <select
                   {...register('thrustArea')}
                   id="thrustArea"
-                  className="w-full appearance-none bg-surface border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand shadow-sm transition-shadow"
+                  disabled={isReadOnlyDefinition}
+                  className="w-full appearance-none bg-surface border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand shadow-sm transition-shadow disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="" disabled>Select an organizational thrust area</option>
                   {thrustAreaOptions.map((opt) => (
@@ -245,8 +299,9 @@ export default function CreateGoalSlideOver({
                 {...register('title')}
                 id="goalTitle"
                 type="text"
+                disabled={isReadOnlyDefinition}
                 placeholder="What is the objective?"
-                className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand disabled:opacity-60 disabled:cursor-not-allowed"
               />
               {errors.title && <p className="text-sm text-danger">{errors.title.message}</p>}
             </div>
@@ -260,8 +315,9 @@ export default function CreateGoalSlideOver({
                 {...register('description')}
                 id="goalDescription"
                 rows={3}
+                disabled={isReadOnlyDefinition}
                 placeholder="Details about the expected outcome..."
-                className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand resize-none"
+                className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand resize-none disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -273,9 +329,10 @@ export default function CreateGoalSlideOver({
               <div className="grid grid-cols-2 gap-3">
                 {uomOptions.map((opt) => {
                   const isSelected = uomValue === opt.value;
+                  const isDisabled = isReadOnlyDefinition;
                   return (
-                    <label key={opt.value} className={cn('relative flex cursor-pointer rounded-lg border p-4 transition-colors', isSelected ? 'border-2 border-brand bg-brand-light' : 'border-border bg-surface hover:bg-background')}>
-                      <input type="radio" {...register('uom')} value={opt.value} className="sr-only" />
+                    <label key={opt.value} className={cn('relative flex cursor-pointer rounded-lg border p-4 transition-colors', isSelected ? 'border-2 border-brand bg-brand-light' : 'border-border bg-surface hover:bg-background', isDisabled && 'opacity-65 cursor-not-allowed')}>
+                      <input type="radio" {...register('uom')} value={opt.value} disabled={isDisabled} className="sr-only" />
                       <span className="flex flex-col">
                         <span className={cn('flex items-center gap-2 text-sm font-semibold', isSelected ? 'text-brand' : 'text-text-primary')}>
                           <opt.icon size={16} />
@@ -297,7 +354,7 @@ export default function CreateGoalSlideOver({
                   <p className="text-xs text-text-secondary">Enable if lower values represent success (e.g. TAT, Cost)</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" {...register('isInverse')} className="sr-only peer" />
+                  <input type="checkbox" {...register('isInverse')} disabled={isReadOnlyDefinition} className="sr-only peer" />
                   <div className="w-11 h-6 bg-border peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-brand/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
                 </label>
               </div>
@@ -311,7 +368,8 @@ export default function CreateGoalSlideOver({
                   type={uomValue === 'TIMELINE' ? 'date' : 'number'}
                   {...register('target', { valueAsNumber: uomValue !== 'TIMELINE' })}
                   id="target"
-                  className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                  disabled={isReadOnlyDefinition}
+                  className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand disabled:opacity-60 disabled:cursor-not-allowed"
                 />
               </div>
               <div className="space-y-2">
@@ -321,6 +379,8 @@ export default function CreateGoalSlideOver({
                   {...register('weightage', { valueAsNumber: true })}
                   id="weightage"
                   className="w-full border border-border rounded-md px-4 py-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand"
+                  min={10}
+                  max={100}
                 />
               </div>
             </div>
@@ -330,7 +390,7 @@ export default function CreateGoalSlideOver({
           <div className="p-6 border-t border-border bg-background flex items-center justify-end gap-3">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-semibold text-text-secondary hover:text-text-primary">Cancel</button>
             <button type="submit" className="px-6 py-2.5 text-sm font-semibold bg-brand text-white rounded-lg shadow-sm hover:bg-brand-dark transition-colors">
-              {isEditMode ? 'Update' : 'Assign Goal'}
+              {isEditMode ? 'Update' : mode === 'SHARED' ? 'Assign Shared Goal' : 'Create Goal'}
             </button>
           </div>
         </form>
