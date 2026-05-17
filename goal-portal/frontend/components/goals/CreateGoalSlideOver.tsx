@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { X, Hash, Calendar, Percent, ToggleRight, CheckCircle, Share2, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect } from 'react';
+import { toast } from 'sonner';
 
 const goalSchema = z.object({
   thrustArea: z.string().min(1, 'Thrust area is required'),
@@ -105,6 +106,12 @@ export default function CreateGoalSlideOver({
   }, [open, initialData, reset, targetEmployeeId]);
 
   const handleFormSubmit = (values: GoalFormValues) => {
+    const newTotal = currentTotalWeightage + (values.weightage || 0);
+    if (newTotal > 100) {
+      toast.error(`Creating or updating this goal would bring total weightage to ${newTotal}%, which exceeds the 100% maximum. You have ${100 - currentTotalWeightage}% remaining weightage.`);
+      return;
+    }
+
     const finalData = { ...values };
     
     // If TIMELINE, convert YYYY-MM-DD string to numeric YYYYMMDD

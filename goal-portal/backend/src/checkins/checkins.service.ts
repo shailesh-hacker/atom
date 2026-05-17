@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UomType } from '@prisma/client';
 
@@ -12,6 +12,10 @@ export class CheckinsService {
       include: { cycle: true }
     });
     if (!goal) throw new NotFoundException('Goal not found');
+
+    if (achievement > goal.target) {
+      throw new BadRequestException(`Achievement value (${achievement}) cannot exceed the assigned target value (${goal.target}).`);
+    }
 
     // Enforce Cycle Phase
     if (goal.cycle && goal.cycle.isActive) {
@@ -33,21 +37,33 @@ export class CheckinsService {
       data: { goalId, achievement, quarter, statusUpdate, comment, progressScore },
     });
 
+    // Update parent goal status to COMPLETED if marked as completed or reached 100%
+    await this.prisma.goal.update({
+      where: { id: goalId },
+      data: { status: (statusUpdate === 'COMPLETED' || progressScore >= 1.0) ? 'COMPLETED' : 'APPROVED' }
+    });
+
     // Sync ONLY if this user is the primary owner of a shared goal
     if (goal.isShared && goal.sharedGroupId && goal.primaryOwnerId === userId) {
       const linkedGoals = await this.prisma.goal.findMany({
         where: { sharedGroupId: goal.sharedGroupId, id: { not: goalId } }
       });
       if (linkedGoals.length > 0) {
-        await Promise.all(linkedGoals.map(lg =>
-          this.prisma.goalUpdate.create({
+        await Promise.all(linkedGoals.map(async lg => {
+          const lgScore = this.computeScore(lg, achievement);
+          await this.prisma.goalUpdate.create({
             data: {
               goalId: lg.id, achievement, quarter, statusUpdate,
               comment: `Synced from Primary Owner: ${comment || ''}`,
-              progressScore: this.computeScore(lg, achievement)
+              progressScore: lgScore
             }
-          })
-        ));
+          });
+          
+          await this.prisma.goal.update({
+            where: { id: lg.id },
+            data: { status: (statusUpdate === 'COMPLETED' || lgScore >= 1.0) ? 'COMPLETED' : 'APPROVED' }
+          });
+        }));
       }
     }
 

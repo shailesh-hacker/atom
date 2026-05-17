@@ -118,25 +118,41 @@ export class ReportsController {
       });
 
       const totalGoals = goals.length;
-      const completedGoals = goals.filter(g => g.updates.length > 0).length;
-      const rate = totalGoals > 0 ? (completedGoals / totalGoals) * 100 : 0;
+      let totalProgressScore = 0;
+      let completedGoalsCount = 0;
+
+      for (const g of goals) {
+        const sortedUpdates = [...g.updates].sort((a: any, b: any) => a.createdAt.getTime() - b.createdAt.getTime());
+        const latestUpdate = sortedUpdates[sortedUpdates.length - 1];
+        const score = latestUpdate ? (latestUpdate.progressScore ?? 0) : 0;
+        
+        totalProgressScore += score;
+        
+        if (score >= 1.0) {
+          completedGoalsCount++;
+        }
+      }
+
+      const rate = totalGoals > 0 ? (totalProgressScore / totalGoals) * 100 : 0;
 
       totalGoalsSum += totalGoals;
-      completedGoalsSum += completedGoals;
+      completedGoalsSum += completedGoalsCount;
 
       employeeDetails.push({
         id: emp.id,
         name: emp.name,
         email: emp.email,
         totalGoals,
-        completedGoals,
+        completedGoals: completedGoalsCount,
         rate,
       });
     }
 
-    const overallRate = totalGoalsSum > 0 ? (completedGoalsSum / totalGoalsSum) * 100 : 0;
-    const completedEmployees = employeeDetails.filter(e => e.totalGoals > 0 && e.rate === 100).length;
     const activeEmployeesCount = employeeDetails.filter(e => e.totalGoals > 0).length;
+    const overallRate = activeEmployeesCount > 0 
+      ? (employeeDetails.filter(e => e.totalGoals > 0).reduce((acc, e) => acc + e.rate, 0) / activeEmployeesCount)
+      : 0;
+    const completedEmployees = employeeDetails.filter(e => e.totalGoals > 0 && Math.round(e.rate) === 100).length;
 
     return {
       total: activeEmployeesCount || employees.length,

@@ -26,9 +26,15 @@ export class GoalsService {
       throw new ForbiddenException('Goal creation is only allowed during the GOAL_SETTING phase');
     }
 
-    const goalCount = await this.prisma.goal.count({ 
-      where: { employeeId: targetEmployeeId, cycleId: activeCycle.id } 
+    const employeeGoals = await this.prisma.goal.findMany({
+      where: { employeeId: targetEmployeeId, cycleId: activeCycle.id }
     });
+    const currentTotalWeightage = employeeGoals.reduce((sum, g) => sum + g.weightage, 0);
+    if (currentTotalWeightage + dto.weightage > 100) {
+      throw new BadRequestException(`Creating this goal would bring total weightage to ${currentTotalWeightage + dto.weightage}%, which exceeds the 100% maximum. You have ${100 - currentTotalWeightage}% remaining weightage.`);
+    }
+
+    const goalCount = employeeGoals.length;
     if (goalCount >= 8) {
       throw new BadRequestException('Maximum 8 goals allowed per employee');
     }
@@ -134,8 +140,22 @@ export class GoalsService {
       throw new ForbiddenException('Cannot edit a completed goal');
     }
 
-    if (dto.weightage !== undefined && dto.weightage < 10) {
-      throw new BadRequestException('Minimum weightage per individual goal is 10%');
+    if (dto.weightage !== undefined) {
+      if (dto.weightage < 10) {
+        throw new BadRequestException('Minimum weightage per individual goal is 10%');
+      }
+
+      const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
+      const employeeGoals = await this.prisma.goal.findMany({
+        where: { employeeId: goal.employeeId, cycleId: activeCycle?.id }
+      });
+      const otherGoalsWeightage = employeeGoals
+        .filter(g => g.id !== goalId)
+        .reduce((sum, g) => sum + g.weightage, 0);
+      
+      if (otherGoalsWeightage + dto.weightage > 100) {
+        throw new BadRequestException(`Updating this goal's weightage to ${dto.weightage}% would bring total weightage to ${otherGoalsWeightage + dto.weightage}%, which exceeds the 100% maximum. You have ${100 - otherGoalsWeightage}% remaining weightage.`);
+      }
     }
 
     return this.prisma.goal.update({

@@ -21,11 +21,11 @@ function ScoreBar({ score }: { score: number }) {
   const pct = Math.round(score * 100);
   const color = pct >= 80 ? 'bg-success' : pct >= 50 ? 'bg-warning' : 'bg-danger';
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-grow w-full">
       <div className="flex-1 h-1.5 bg-border rounded-full overflow-hidden">
         <div className={cn('h-full rounded-full transition-all', color)} style={{ width: `${Math.min(pct, 100)}%` }} />
       </div>
-      <span className={cn('text-xs font-semibold w-8 text-right', pct >= 80 ? 'text-success' : pct >= 50 ? 'text-warning' : 'text-danger')}>
+      <span className="text-xs font-bold text-text-primary min-w-[32px] text-right shrink-0">
         {pct}%
       </span>
     </div>
@@ -175,11 +175,16 @@ export default function ManagerCheckinsPage() {
             const isExpanded = expandedEmployee === emp.id;
 
             // Summary stats for this employee in selected quarter
-            const updatesThisQuarter = approvedGoals.flatMap((g: any) =>
-              (g.updates || []).filter((u: any) => u.quarter === selectedQuarter)
-            );
-            const avgScore = updatesThisQuarter.length > 0
-              ? updatesThisQuarter.reduce((s: number, u: any) => s + (u.progressScore || 0), 0) / updatesThisQuarter.length
+            const avgScore = approvedGoals.length > 0
+              ? approvedGoals.reduce((sum: number, g: any) => {
+                  const quarterUpdates = (g.updates || []).filter((u: any) => u.quarter === selectedQuarter);
+                  if (quarterUpdates.length > 0) {
+                    const sortedUpdates = [...quarterUpdates].sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                    const latestUpdate = sortedUpdates[sortedUpdates.length - 1];
+                    return sum + (latestUpdate.progressScore || 0);
+                  }
+                  return sum;
+                }, 0) / approvedGoals.length
               : null;
             const checkedIn = approvedGoals.filter((g: any) =>
               (g.updates || []).some((u: any) => u.quarter === selectedQuarter)

@@ -17,11 +17,13 @@ const navTabs = {
     { name: 'Team Goals', href: '/team' },
     { name: 'Approvals', href: '/approvals' },
     { name: 'Check-ins', href: '/team-checkins' },
+    { name: 'Analysis', href: '/team/analysis' },
     { name: 'Reports', href: '/reports' },
   ],
   ADMIN: [
     { name: 'Users', href: '/users' },
     { name: 'Cycles', href: '/cycles' },
+    { name: 'Analysis', href: '/analysis' },
     { name: 'Audit Logs', href: '/audit' },
     { name: 'Reports', href: '/reports' },
   ],

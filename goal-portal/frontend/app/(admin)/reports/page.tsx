@@ -269,7 +269,8 @@ export default function ReportsPage() {
                       </thead>
                       <tbody className="divide-y divide-border text-text-primary">
                         {completion.employeeDetails.map((emp: any) => {
-                          const isDone = emp.totalGoals > 0 && emp.completedGoals === emp.totalGoals;
+                          const isDone = emp.totalGoals > 0 && Math.round(emp.rate) === 100;
+                          const isInProgress = emp.totalGoals > 0 && emp.rate > 0 && Math.round(emp.rate) < 100;
                           const hasNone = emp.totalGoals === 0;
                           
                           return (
@@ -289,7 +290,7 @@ export default function ReportsPage() {
                                       <div
                                         className={cn(
                                           'h-1.5 rounded-full transition-all duration-300',
-                                          isDone ? 'bg-success' : emp.completedGoals > 0 ? 'bg-brand' : 'bg-danger'
+                                          isDone ? 'bg-success' : isInProgress ? 'bg-brand' : 'bg-danger'
                                         )}
                                         style={{ width: `${emp.rate}%` }}
                                       />
@@ -298,11 +299,11 @@ export default function ReportsPage() {
                                       'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
                                       isDone 
                                         ? 'bg-success-light text-emerald-700' 
-                                        : emp.completedGoals > 0 
+                                        : isInProgress 
                                           ? 'bg-brand-light text-brand' 
                                           : 'bg-danger/10 text-danger'
                                     )}>
-                                      {isDone ? 'Complete' : emp.completedGoals > 0 ? 'In Progress' : 'No Check-in'}
+                                      {isDone ? 'Complete' : isInProgress ? 'In Progress' : 'No Check-in'}
                                     </span>
                                   </div>
                                 )}

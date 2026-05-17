@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface CheckinModalProps {
   open: boolean;
@@ -28,18 +29,19 @@ export default function CheckinModal({
   initialAchievement = 0,
   initialComment = ''
 }: CheckinModalProps) {
-  const [achievement, setAchievement] = useState(initialAchievement);
+  const [achievement, setAchievement] = useState<number | ''>(initialAchievement || '');
   const [statusUpdate, setStatusUpdate] = useState('ON_TRACK');
   const [comment, setComment] = useState(initialComment);
 
   if (!open) return null;
 
   // Compute progress score
+  const numericAchievement = achievement === '' ? 0 : achievement;
   let score = 0;
   if (goal.uom === 'ZERO_BASED') {
-    score = achievement === 0 ? 100 : 0;
+    score = numericAchievement === 0 ? 100 : 0;
   } else if (goal.target > 0) {
-    score = Math.round((achievement / goal.target) * 100);
+    score = Math.round((numericAchievement / goal.target) * 100);
   }
   const clampedScore = Math.min(score, 100);
 
@@ -121,7 +123,7 @@ export default function CheckinModal({
                 type="number"
                 id="achievement"
                 value={achievement}
-                onChange={(e) => setAchievement(Number(e.target.value))}
+                onChange={(e) => setAchievement(e.target.value === '' ? '' : Number(e.target.value))}
                 step="0.1"
                 className="w-full bg-surface border border-border rounded-md px-4 py-2.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/20 focus:border-brand transition-colors pr-10"
               />
@@ -185,7 +187,17 @@ export default function CheckinModal({
           </button>
           <button
             type="button"
-            onClick={() => onSave({ achievement, statusUpdate, comment })}
+            onClick={() => {
+              if (achievement === '') {
+                toast.error('Please enter an achievement value.');
+                return;
+              }
+              if (achievement > goal.target) {
+                toast.error(`Achievement value (${achievement}) cannot exceed the assigned target value (${goal.target}).`);
+                return;
+              }
+              onSave({ achievement: Number(achievement), statusUpdate, comment });
+            }}
             className="px-4 py-2 text-sm font-semibold text-white bg-brand rounded-lg shadow-sm hover:bg-brand-dark transition-colors flex items-center gap-2"
           >
             <Save size={16} />
