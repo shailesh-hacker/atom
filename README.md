@@ -7,15 +7,79 @@ The project is organized as a two-app workspace:
 - `goal-portal/frontend` - Next.js app for employees, managers, and admins.
 - `goal-portal/backend` - NestJS REST API backed by PostgreSQL through Prisma.
 
-## Features
+## Key Features
 
-- Role-based authentication for `EMPLOYEE`, `MANAGER`, and `ADMIN` users.
-- Employee goal creation, editing, submission, and quarterly check-ins.
-- Manager team views, goal approvals, returns for rework, inline manager edits, shared goals, and team analysis.
-- Admin user management, reporting, cycle configuration, audit log review, and goal unlocks.
-- Goal scoring for numeric, percentage, timeline, zero-based, and inverse "lower is better" KPIs.
-- Active performance cycles with phases from goal setting through Q1-Q4 check-ins and closed state.
-- CSV exports and completion analytics for admins and managers.
+This project is built around the AtomQuest Hackathon 1.0 problem statement: an in-house Goal Setting & Tracking Portal that replaces spreadsheets, email follow-ups, and offline review cycles with a structured, role-aware web application.
+
+### Phase 1: Goal Creation & Approval
+
+- Employee goal sheet creation with Thrust Area, Goal Title, Description, UoM, Target, and Weightage.
+- Supported UoM types: Numeric, Percentage, Timeline, and Zero-based goals.
+- Validation rules aligned with the BRD:
+  - Total goal weightage must equal 100% before submission.
+  - Each goal must carry at least 10% weightage.
+  - Each employee can have a maximum of 8 goals per active cycle.
+- Manager approval workflow with team dashboard, inline target/weightage edits, approve actions, and return-for-rework comments.
+- Approved goals are locked from employee edits; admin users can unlock goals for exception handling.
+- Shared goals allow managers/admins to push a departmental KPI to multiple employees.
+- Shared goal recipients can adjust weightage while core goal definition remains controlled.
+- Primary-owner achievement updates synchronize across linked shared-goal sheets.
+
+### Phase 2: Achievement Tracking & Quarterly Check-ins
+
+- Quarterly achievement entry for employees against approved planned targets.
+- Per-goal status updates: Not Started, On Track, and Completed.
+- Active cycle phases control which quarter can be updated: Q1, Q2, Q3, or Q4.
+- Manager check-in view shows Planned vs. Actual achievement for each team member.
+- Managers can add structured check-in comments to document discussions.
+- Check-in history is stored per goal for traceability.
+
+### Check-in Schedule Coverage
+
+The admin-managed cycle phases map to the quarterly schedule from the problem statement:
+
+| Phase | Window | Portal Action |
+| --- | --- | --- |
+| Goal Setting | Starts 1 May | Goal creation, submission, and approval |
+| Q1 Check-in | July | Planned vs. actual progress update |
+| Q2 Check-in | October | Planned vs. actual progress update |
+| Q3 Check-in | January | Planned vs. actual progress update |
+| Q4 / Annual | March / April | Final achievement capture |
+
+### Progress Scoring
+
+Progress scores are computed by the backend for tracking and visibility:
+
+| Goal Type | Use Case | Scoring Logic |
+| --- | --- | --- |
+| Numeric / Percentage | Higher is better, such as revenue or output | `achievement / target` |
+| Inverse Numeric / Percentage | Lower is better, such as cost or turnaround time | `target / achievement` |
+| Timeline | Deadline-based completion | `100%` if completion date is on or before target date |
+| Zero-based | Zero is success, such as incidents or defects | `100%` if achievement is `0`, otherwise `0%` |
+
+Scores are clamped between 0% and 100% to keep dashboards stable.
+
+### Role-Based Workspaces
+
+| Role | Key Capabilities |
+| --- | --- |
+| Employee | Create and submit goals, view locked goals, log quarterly achievements, track personal progress. |
+| Manager | Review team goals, edit target/weightage during approval, return goals for rework, approve goals, conduct quarterly check-ins, view team analysis. |
+| Admin / HR | Manage users and reporting hierarchy, configure performance cycles, unlock goals, review audit logs, monitor completion, export reports. |
+
+### Reporting & Governance
+
+- Achievement CSV export with planned target, actual achievement, quarterly scores, goal metadata, and employee information.
+- Completion dashboard showing check-in progress and completion rates for employees and teams.
+- Audit trail for important goal and check-in changes, including create, update, approve, return, unlock, delete, and auto-approve events.
+- Admin audit log screen surfaces the latest tracked actions.
+- Cycle management supports goal setting, Q1-Q4 check-ins, closed phase, active cycle selection, and data reset for demo/testing.
+
+### Bonus / Differentiator Features
+
+- Email notifications are wired through Resend for goal creation, goal updates, goal submission, completed-work submission, and check-in updates.
+- Analytics views include quarter-over-quarter progress trends, completion rates, and goal distribution analysis.
+- Render deployment configuration is included for the backend API.
 
 ## Tech Stack
 
