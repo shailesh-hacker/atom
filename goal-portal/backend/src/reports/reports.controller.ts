@@ -72,15 +72,17 @@ export class ReportsController {
     }
 
     const activeCycle = await this.prisma.cycle.findFirst({ where: { isActive: true } });
-    let activeQuarter = 'Q1';
+    let activeQuarter = 'Goal Setting';
     if (activeCycle) {
       const phaseToQuarter: Record<string, string> = {
+        GOAL_SETTING: 'Goal Setting',
         Q1_CHECKIN: 'Q1',
         Q2_CHECKIN: 'Q2',
         Q3_CHECKIN: 'Q3',
         Q4_CHECKIN: 'Q4',
+        CLOSED: 'Closed',
       };
-      activeQuarter = phaseToQuarter[activeCycle.phase] || 'Q1';
+      activeQuarter = phaseToQuarter[activeCycle.phase] || 'Goal Setting';
     }
 
     const whereClause: any = { role: Role.EMPLOYEE };

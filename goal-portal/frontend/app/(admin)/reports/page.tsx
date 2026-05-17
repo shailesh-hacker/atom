@@ -202,7 +202,9 @@ export default function ReportsPage() {
                 <h2 className="text-lg font-semibold text-text-primary">Completion Dashboard</h2>
                 {completion && (
                   <span className="inline-flex items-center rounded-full bg-brand-light px-3 py-1 text-xs font-semibold text-brand uppercase tracking-wide">
-                    Active Quarter: {completion.activeQuarter || 'Q1'}
+                    {completion.activeQuarter && completion.activeQuarter.includes('Setting')
+                      ? `Active Phase: ${completion.activeQuarter}`
+                      : `Active Quarter: ${completion.activeQuarter || 'Q1'}`}
                   </span>
                 )}
               </div>
