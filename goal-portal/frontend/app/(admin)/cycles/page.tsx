@@ -8,12 +8,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 
 const phaseLabels: Record<string, string> = {
-  GOAL_SETTING: 'Goal Setting',
+  GOAL_SETTING: 'Phase 1 — Goal Setting',
   Q1_CHECKIN: 'Q1 Check-in',
   Q2_CHECKIN: 'Q2 Check-in',
   Q3_CHECKIN: 'Q3 Check-in',
-  Q4_CHECKIN: 'Q4 Check-in',
+  Q4_CHECKIN: 'Q4 / Annual',
   CLOSED: 'Closed',
+};
+
+const phaseTimings: Record<string, string> = {
+  GOAL_SETTING: '1st May',
+  Q1_CHECKIN: 'July',
+  Q2_CHECKIN: 'October',
+  Q3_CHECKIN: 'January',
+  Q4_CHECKIN: 'March / April',
+  CLOSED: 'Completed',
 };
 
 const phaseOrder = ['GOAL_SETTING', 'Q1_CHECKIN', 'Q2_CHECKIN', 'Q3_CHECKIN', 'Q4_CHECKIN', 'CLOSED'];
@@ -227,8 +236,11 @@ export default function CyclesPage() {
 
       {/* Phase Timeline */}
       {activeCycle && (
-        <div className="bg-surface rounded-xl border border-border p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-text-primary mb-6">Phase Timeline</h3>
+        <div className="bg-surface rounded-xl border border-border p-6 shadow-sm space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary">Phase Timeline</h3>
+            <p className="text-xs text-text-secondary mt-0.5">Track and control active intervals in real-time.</p>
+          </div>
           <div className="flex items-center gap-0 overflow-x-auto pb-4">
             {phaseOrder.map((phase, i) => {
               const isActive = activeCycle.phase === phase;
@@ -236,7 +248,7 @@ export default function CyclesPage() {
 
               return (
                 <div key={phase} className="flex items-center">
-                  <div className="flex flex-col items-center min-w-[120px]">
+                  <div className="flex flex-col items-center min-w-[140px]">
                     <div className={cn(
                       'h-4 w-4 rounded-full border-2',
                       isActive
@@ -246,21 +258,28 @@ export default function CyclesPage() {
                           : 'bg-surface border-border'
                     )} />
                     <p className={cn(
-                      'text-xs font-medium mt-2 text-center',
+                      'text-xs font-semibold mt-2 text-center whitespace-nowrap',
                       isActive ? 'text-brand' : isPast ? 'text-success' : 'text-text-secondary'
                     )}>
                       {phaseLabels[phase]}
                     </p>
+                    <p className="text-[10px] text-text-secondary font-medium mt-0.5 italic">
+                      {phaseTimings[phase]}
+                    </p>
                     {isActive && (
-                      <span className="text-xs text-brand font-medium mt-1">(active)</span>
+                      <span className="inline-flex items-center rounded-full bg-brand-light px-2 py-0.5 text-[9px] font-bold text-brand uppercase tracking-wide mt-1">
+                        active
+                      </span>
                     )}
                     {isPast && (
-                      <CheckCircle size={12} className="text-success mt-1" />
+                      <span className="inline-flex items-center rounded-full bg-success-light px-2 py-0.5 text-[9px] font-bold text-emerald-700 uppercase tracking-wide mt-1 gap-0.5">
+                        <CheckCircle size={10} /> done
+                      </span>
                     )}
                   </div>
                   {i < phaseOrder.length - 1 && (
                     <div className={cn(
-                      'h-0.5 w-12 -mt-6',
+                      'h-0.5 w-16 -mt-10',
                       isPast ? 'bg-success' : isActive ? 'bg-brand' : 'bg-border'
                     )} />
                   )}
@@ -271,7 +290,52 @@ export default function CyclesPage() {
         </div>
       )}
 
-
+      {/* Official Cycle Timings & Guidelines */}
+      <div className="bg-surface rounded-xl border border-border p-6 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-text-primary">Official Cycle Timings & Guidelines</h3>
+          <p className="text-xs text-text-secondary mt-0.5">Corporate schedule for goal setting, check-in intervals, and final annual achievements.</p>
+        </div>
+        
+        <div className="overflow-x-auto border border-border rounded-lg bg-background/30">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border bg-background/50 font-semibold text-text-secondary">
+                <th className="px-4 py-3">Phase / Cycle</th>
+                <th className="px-4 py-3">Timing</th>
+                <th className="px-4 py-3">Actions & Description</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-text-primary">
+              <tr className="hover:bg-background/20 transition-colors">
+                <td className="px-4 py-3 font-semibold text-brand">Phase 1 — Goal Setting</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap text-text-primary">1st May</td>
+                <td className="px-4 py-3 text-text-secondary">Goal Creation, Submission & Approval</td>
+              </tr>
+              <tr className="hover:bg-background/20 transition-colors">
+                <td className="px-4 py-3 font-semibold text-text-primary">Q1 Check-in</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap text-text-primary">July</td>
+                <td className="px-4 py-3 text-text-secondary">Progress Update — Planned vs. Actual</td>
+              </tr>
+              <tr className="hover:bg-background/20 transition-colors">
+                <td className="px-4 py-3 font-semibold text-text-primary">Q2 Check-in</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap text-text-primary">October</td>
+                <td className="px-4 py-3 text-text-secondary">Progress Update — Planned vs. Actual</td>
+              </tr>
+              <tr className="hover:bg-background/20 transition-colors">
+                <td className="px-4 py-3 font-semibold text-text-primary">Q3 Check-in</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap text-text-primary">January</td>
+                <td className="px-4 py-3 text-text-secondary">Progress Update — Planned vs. Actual</td>
+              </tr>
+              <tr className="hover:bg-background/20 transition-colors">
+                <td className="px-4 py-3 font-semibold text-text-primary">Q4 / Annual</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap text-text-primary">March / April</td>
+                <td className="px-4 py-3 text-text-secondary">Final Achievement Capture</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
